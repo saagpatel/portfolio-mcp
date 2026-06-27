@@ -102,6 +102,21 @@ npm run build:corpus && npm run build:cli   # -> dist/stdio.js
 # remove "private": true, then: npm publish
 ```
 
+## Sign the manifest (optional trust signal)
+
+Ed25519-sign `.well-known/mcp.json` so an agent or registry can verify it authentically
+comes from Saagar. Zero dependencies (Node built-in crypto):
+
+```sh
+node scripts/sign-manifest.mjs gen-key   # one-time; private key -> .signing/ (gitignored, NEVER commit)
+node scripts/sign-manifest.mjs sign      # writes <manifest>.sig + publishes mcp-ed25519.pub
+node scripts/sign-manifest.mjs verify    # checks manifest bytes against .sig + public key
+```
+
+Defaults target the sibling `portfolio-index` manifest (override with `--manifest=`/`--key=`/`--pub=`/`--sig=`).
+Commit the `.sig` + `mcp-ed25519.pub` (never the private key) into portfolio-index next to the manifest, then
+redeploy the site. Re-run `sign` whenever the manifest changes (it signs the exact served bytes).
+
 ## Audit posture
 
 Designed to pass `MCPAudit` / `mcp-trust` (Saagar's own tools): only the inbound MCP
