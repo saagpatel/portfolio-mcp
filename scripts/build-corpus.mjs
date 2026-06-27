@@ -30,7 +30,8 @@ async function fromUrl(base) {
 	const documents = {};
 	for (const d of index.documents) documents[d.id] = await get(`corpus/${d.id}.json`);
 	const projects = await get("projects-data.json");
-	return { index, documents, projects };
+	// OPERANT sources are build inputs, not published at a URL — omitted in url mode.
+	return { index, documents, projects, operant: null };
 }
 
 function fromDir(dir) {
@@ -40,7 +41,17 @@ function fromDir(dir) {
 	const documents = {};
 	for (const d of index.documents) documents[d.id] = read(`corpus/${d.id}.json`);
 	const projects = read("projects-data.json");
-	return { index, documents, projects };
+	const readOptional = (rel) => {
+		try {
+			return read(rel);
+		} catch {
+			return null;
+		}
+	};
+	const profiles = readOptional("scripts/sources/operant/calibration-profiles.json");
+	const figures = readOptional("scripts/sources/operant/operant-figures.json");
+	const operant = profiles && figures ? { profiles, figures } : null;
+	return { index, documents, projects, operant };
 }
 
 const corpus = urlArg ? await fromUrl(urlArg) : fromDir(dirArg);

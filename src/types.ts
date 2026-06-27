@@ -59,9 +59,33 @@ export interface ProjectsData {
 	archive: ProjectsArchive;
 }
 
+/** One model's calibration profile from the public OPERANT mirror. */
+export interface OperantModel {
+	display_name: string;
+	ocs_mean: number | null;
+	ocs_stdev: number | null;
+	orchestration_mean: number | null;
+	run_family: string;
+	subject_shell: string;
+}
+
+/** Public, sanitized OPERANT results (calibration profiles + presentation figures),
+ * sourced from the published mirror github.com/saagpatel/operant. */
+export interface OperantData {
+	profiles: {
+		generated_at?: string;
+		included_lab_labels?: string[];
+		models: OperantModel[];
+		presentation?: unknown;
+		source_result_policy?: string;
+	};
+	figures: Record<string, unknown>;
+}
+
 /** The single baked artifact the Worker bundles. */
 export interface Corpus {
 	index: CorpusIndex;
 	documents: Record<string, FullDoc>; // keyed by id
 	projects: ProjectsData;
+	operant?: OperantData | null; // optional: only present when baked from local sources
 }

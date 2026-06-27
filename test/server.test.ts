@@ -57,7 +57,7 @@ describe("MCP server over the Worker fetch handler", () => {
 		expect(json.result.serverInfo.name).toBe("saagarpatel-portfolio");
 	});
 
-	it("lists the 5 read-only tools", async () => {
+	it("lists the 6 read-only tools", async () => {
 		const { json } = await rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" });
 		const names = (
 			json.result.tools as Array<{
@@ -69,6 +69,7 @@ describe("MCP server over the Worker fetch handler", () => {
 			.sort();
 		expect(names).toEqual([
 			"get_document",
+			"get_operant_results",
 			"get_profile",
 			"list_corpus",
 			"list_projects",
@@ -110,5 +111,53 @@ describe("MCP server over the Worker fetch handler", () => {
 			method: "resources/list",
 		});
 		expect(Array.isArray(json.result.resources)).toBe(true);
+	});
+
+	it("calls get_operant_results and reports availability", async () => {
+		const { json } = await rpc({
+			jsonrpc: "2.0",
+			id: 6,
+			method: "tools/call",
+			params: { name: "get_operant_results", arguments: {} },
+		});
+		const payload = JSON.parse(json.result.content[0].text);
+		expect(payload).toHaveProperty("available");
+	});
+
+	it("lists the two prompts", async () => {
+		const { json } = await rpc({
+			jsonrpc: "2.0",
+			id: 7,
+			method: "prompts/list",
+		});
+		const names = (json.result.prompts as Array<{ name: string }>)
+			.map((p) => p.name)
+			.sort();
+		expect(names).toEqual(["introduce_saagar", "summarize_writing_on"]);
+	});
+
+	it("gets the introduce_saagar prompt", async () => {
+		const { json } = await rpc({
+			jsonrpc: "2.0",
+			id: 8,
+			method: "prompts/get",
+			params: { name: "introduce_saagar", arguments: {} },
+		});
+		expect(json.result.messages[0].content.text).toContain("Saagar Patel");
+	});
+
+	it("gets the summarize_writing_on prompt with a topic argument", async () => {
+		const { json } = await rpc({
+			jsonrpc: "2.0",
+			id: 9,
+			method: "prompts/get",
+			params: {
+				name: "summarize_writing_on",
+				arguments: { topic: "verification" },
+			},
+		});
+		expect(json.result.messages[0].content.text.toLowerCase()).toContain(
+			"verification",
+		);
 	});
 });

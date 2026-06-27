@@ -120,7 +120,38 @@ export function createTools(corpus: Corpus) {
 		};
 	}
 
-	return { search, getDocument, listCorpus, getProfile, listProjects };
+	/** get_operant_results: the public, sanitized OPERANT calibration results
+	 * (per-model OCS profiles + headline figures). Returns availability + note
+	 * when no public dataset was baked. */
+	function getOperantResults(): Record<string, unknown> {
+		const op = corpus.operant;
+		if (!op) {
+			return {
+				available: false,
+				note: "No public OPERANT dataset is baked into this server build.",
+			};
+		}
+		const fig = op.figures;
+		return {
+			available: true,
+			headline: fig.headline ?? null,
+			metric: fig.metric ?? null,
+			decision: fig.decision ?? null,
+			framing: op.profiles.presentation ?? null,
+			models: op.profiles.models,
+			provenance: fig._provenance ?? null,
+			links: fig.links ?? null,
+		};
+	}
+
+	return {
+		search,
+		getDocument,
+		listCorpus,
+		getProfile,
+		listProjects,
+		getOperantResults,
+	};
 }
 
 export type Tools = ReturnType<typeof createTools>;
