@@ -19,7 +19,7 @@ function parseArgs(argv) {
 		const arg = argv[i];
 		const [key, inlineValue] = arg.split("=", 2);
 		const value = inlineValue ?? argv[i + 1];
-		if (arg.startsWith("--") && value === undefined) {
+		if (arg.startsWith("--") && (value === undefined || value.startsWith("--"))) {
 			throw new Error(`missing value for ${key}`);
 		}
 		if (inlineValue === undefined && arg.startsWith("--")) i += 1;
