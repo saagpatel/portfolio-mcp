@@ -1,0 +1,13 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "portfolio-mcp",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-09-01",
+	"compatibility_flags": ["nodejs_compat"],
+	"observability": { "enabled": true }
+	// Custom domain mcp.saagarpatel.dev is NOT bound here: saagarpatel.dev's DNS is on
+	// Vercel, and a Workers custom domain requires the zone on Cloudflare. v1 deploys to
+	// the default portfolio-mcp.<account>.workers.dev URL. To bind mcp.saagarpatel.dev,
+	// either move the zone to Cloudflare (then add a "routes" custom_domain entry) or
+	// front it with a proxy. Decide before flipping .well-known/mcp.json to "live".
+}

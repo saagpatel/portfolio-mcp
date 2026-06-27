@@ -1,0 +1,24 @@
+{
+	"name": "portfolio-mcp",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "Agent-native MCP server over the public saagarpatel.dev corpus — read-only, stateless.",
+	"scripts": {
+		"build:corpus": "node scripts/build-corpus.mjs",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"dev": "wrangler dev",
+		"deploy": "wrangler deploy"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "1.29.0",
+		"zod": "^3"
+	},
+	"devDependencies": {
+		"@cloudflare/workers-types": "^4",
+		"typescript": "^5",
+		"vitest": "^2",
+		"wrangler": "^4"
+	}
+}
