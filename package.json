@@ -9,6 +9,7 @@
 		"build:cli": "esbuild src/stdio.ts --bundle --platform=node --format=esm --outfile=dist/stdio.js",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
+		"probe:mcp": "node scripts/probe-mcp.mjs",
 		"dev": "wrangler dev",
 		"deploy": "wrangler deploy"
 	},

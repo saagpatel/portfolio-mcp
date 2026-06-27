@@ -60,6 +60,7 @@ src/
   stdio.ts            Layer 2 stdio transport (the npx CLI)
 scripts/
   build-corpus.mjs    bakes Layer 0 (+ OPERANT) into corpus.generated.ts
+  probe-mcp.mjs        probes an MCP HTTP endpoint: initialize, tools/list, search, OPERANT
   smoke-mcp.sh        boots wrangler dev, drives the MCP protocol under workerd
   audit-mcp.sh        connected MCPAudit scan of this server (dogfood)
 test/                 vitest: bm25, tools, full-protocol server tests
@@ -74,6 +75,7 @@ npm run typecheck
 npm test
 npm run dev                   # wrangler dev -> http://localhost:8787/mcp
 bash scripts/smoke-mcp.sh     # end-to-end MCP smoke under the real workerd runtime
+npm run probe:mcp             # live Worker probe, or set PORTFOLIO_MCP_ENDPOINT
 ```
 
 Inspect either transport with the MCP inspector:
@@ -87,6 +89,7 @@ npx @modelcontextprotocol/inspector node dist/stdio.js          # Layer 2 (stdio
 
 ```sh
 npm run build:corpus && npm run deploy   # wrangler deploy
+npm run probe:mcp                        # post-deploy live MCP readback
 ```
 
 Operator-gated (needs Cloudflare auth). v1 deploys to `portfolio-mcp.<account>.workers.dev`;
@@ -137,7 +140,8 @@ server's findings 62 → 14. The genuine tool surface scans clean (`high_risk_se
 
 - **Built + verified:** Layers 0–2. Shared core + 6 tools + Resources + 2 prompts +
   `get_operant_results`. typecheck clean; 26 tests pass (incl. full MCP protocol via the
-  fetch handler); `wrangler dev` workerd smoke green; connected MCPAudit dogfood done.
-- **Gated / next:** deploy (Cloudflare auth), `mcp.saagarpatel.dev` custom domain (DNS
-  decision), publish the stdio package (esbuild install + `npm publish`), glama.ai registry
-  listing (needs a live URL), and an Ed25519-signed `.well-known/mcp.json`.
+  fetch handler); `wrangler dev` workerd smoke green; live Worker probe green on
+  2026-06-27; connected MCPAudit dogfood done.
+- **Gated / next:** `mcp.saagarpatel.dev` custom domain (DNS decision), publish the stdio
+  package (esbuild install + `npm publish`), glama.ai registry listing, and an
+  Ed25519-signed `.well-known/mcp.json`.

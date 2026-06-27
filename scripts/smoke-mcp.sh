@@ -32,18 +32,7 @@ done
 echo "ready=$ready after ${secs}s (root returned HTTP ${code})"
 
 if [ "$ready" = "1" ]; then
-	echo "--- initialize ---"
-	curl -sS -X POST "http://127.0.0.1:8787/mcp" \
-		-H 'Content-Type: application/json' \
-		-H 'Accept: application/json, text/event-stream' \
-		-d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"1"}}}'
-	echo
-	echo "--- tools/call search (query=verification, limit=2) ---"
-	curl -sS -X POST "http://127.0.0.1:8787/mcp" \
-		-H 'Content-Type: application/json' \
-		-H 'Accept: application/json, text/event-stream' \
-		-d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"search","arguments":{"query":"verification","limit":2}}}'
-	echo
+	node scripts/probe-mcp.mjs --endpoint "http://127.0.0.1:8787/mcp"
 fi
 
 kill "$WPID" 2>/dev/null
