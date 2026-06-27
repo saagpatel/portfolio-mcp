@@ -90,9 +90,14 @@ npm run build:corpus && npm run deploy   # wrangler deploy
 ```
 
 Operator-gated (needs Cloudflare auth). v1 deploys to `portfolio-mcp.<account>.workers.dev`;
-`mcp.saagarpatel.dev` as a custom domain needs the zone on Cloudflare (saagarpatel.dev's
-DNS is on Vercel) — see `wrangler.jsonc`. After deploy, flip `.well-known/mcp.json` `status`
-from `planned` to `live` in the portfolio-index repo.
+`mcp.saagarpatel.dev` stays parked until DNS is live and MCP-verified. A one-off
+`wrangler deploy --domain mcp.saagarpatel.dev` can attach a Cloudflare trigger, but the
+hostname did not resolve while `saagarpatel.dev` stayed on third-party/Vercel DNS. Keep
+`.well-known/mcp.json` on the Worker URL until a replacement endpoint passes live checks.
+
+`wrangler.jsonc` pins `workers_dev: true` so the public Worker URL stays live during any
+future custom-domain experiments; do not remove it unless the website manifest has already
+moved to a verified replacement endpoint.
 
 ## Publish (Layer 2)
 
