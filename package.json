@@ -30,6 +30,7 @@
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
 		"probe:mcp": "node scripts/probe-mcp.mjs",
+		"dogfood": "npm run build:cli && node scripts/dogfood.mjs",
 		"dev": "wrangler dev",
 		"deploy": "wrangler deploy"
 	},
