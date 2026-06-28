@@ -92,11 +92,11 @@ npm run build:corpus && npm run deploy   # wrangler deploy
 npm run probe:mcp                        # post-deploy live MCP readback
 ```
 
-Operator-gated (needs Cloudflare auth). v1 deploys to `portfolio-mcp.<account>.workers.dev`;
-`mcp.saagarpatel.dev` stays parked until DNS is live and MCP-verified. A one-off
-`wrangler deploy --domain mcp.saagarpatel.dev` can attach a Cloudflare trigger, but the
-hostname did not resolve while `saagarpatel.dev` stayed on third-party/Vercel DNS. Keep
-`.well-known/mcp.json` on the Worker URL until a replacement endpoint passes live checks.
+Operator-gated (needs Cloudflare auth). v1 still deploys to the default
+`portfolio-mcp.<account>.workers.dev` URL, and `npm run probe:mcp` uses that stable
+Worker URL by default. Public discovery now advertises the verified custom endpoint
+`https://mcp.saagarpatel.dev/mcp`; after any deploy, verify both the Worker and the
+website manifest/readback path before changing `.well-known/mcp.json`.
 
 `wrangler.jsonc` pins `workers_dev: true` so the public Worker URL stays live during any
 future custom-domain experiments; do not remove it unless the website manifest has already
@@ -140,8 +140,8 @@ server's findings 62 → 14. The genuine tool surface scans clean (`high_risk_se
 
 - **Built + verified:** Layers 0–2. Shared core + 6 tools + Resources + 2 prompts +
   `get_operant_results`. typecheck clean; 26 tests pass (incl. full MCP protocol via the
-  fetch handler); `wrangler dev` workerd smoke green; live Worker probe green on
-  2026-06-27; connected MCPAudit dogfood done.
-- **Gated / next:** `mcp.saagarpatel.dev` custom domain (DNS decision), publish the stdio
-  package (esbuild install + `npm publish`), glama.ai registry listing, and an
-  Ed25519-signed `.well-known/mcp.json`.
+  fetch handler); `wrangler dev` workerd smoke green; live Worker probe green; public
+  discovery advertises `mcp.saagarpatel.dev` with a valid Ed25519-signed manifest.
+- **Gated / next:** publish the stdio package (`npm publish`, after removing
+  `"private": true` by explicit operator approval only), glama.ai registry listing, and
+  continued signed-manifest readback checks after website manifest changes.

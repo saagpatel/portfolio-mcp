@@ -7,9 +7,8 @@
 	"workers_dev": true,
 	"preview_urls": false,
 	"observability": { "enabled": true }
-	// Custom domain mcp.saagarpatel.dev is NOT configured here. A one-off domain deploy
-	// can attach a Cloudflare custom-domain trigger, but the hostname did not resolve
-	// while saagarpatel.dev stayed on third-party/Vercel DNS. v1 deploys to the default
-	// portfolio-mcp.<account>.workers.dev URL. Only move .well-known/mcp.json after a
-	// replacement endpoint is DNS-live and MCP-verified.
-}
+		// v1 deploys to the default portfolio-mcp.<account>.workers.dev URL and keeps
+		// workers_dev enabled as the stable direct Worker endpoint. Public discovery may
+		// advertise mcp.saagarpatel.dev only after DNS, Worker readback, and signed website
+		// manifest verification are green.
+	}
