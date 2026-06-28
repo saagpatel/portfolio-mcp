@@ -1,5 +1,7 @@
 # portfolio-mcp
 
+[![Glama MCP server](https://glama.ai/mcp/servers/saagpatel/portfolio-mcp/badge)](https://glama.ai/mcp/servers/saagpatel/portfolio-mcp)
+
 The agent-native layer of [saagarpatel.dev](https://saagarpatel.dev): a Model
 Context Protocol server that lets any AI agent query Saagar's writing, projects,
 and benchmark results directly, instead of scraping HTML.
@@ -105,10 +107,11 @@ moved to a verified replacement endpoint.
 ## Publish (Layer 2)
 
 ```sh
-npm install -D esbuild        # bundling dep (declared in package.json)
 npm run build:corpus && npm run build:cli   # -> dist/stdio.js
-# remove "private": true, then: npm publish
+npm login && npm publish                     # public package: saagar-portfolio-mcp
 ```
+
+Once published, anyone can run it locally with `npx saagar-portfolio-mcp` (no install).
 
 ## Sign the manifest (optional trust signal)
 
