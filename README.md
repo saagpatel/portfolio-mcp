@@ -105,10 +105,11 @@ moved to a verified replacement endpoint.
 ## Publish (Layer 2)
 
 ```sh
-npm install -D esbuild        # bundling dep (declared in package.json)
 npm run build:corpus && npm run build:cli   # -> dist/stdio.js
-# remove "private": true, then: npm publish
+npm login && npm publish                     # public package: saagar-portfolio-mcp
 ```
+
+Once published, anyone can run it locally with `npx saagar-portfolio-mcp` (no install).
 
 ## Sign the manifest (optional trust signal)
 

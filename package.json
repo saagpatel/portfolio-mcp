@@ -1,10 +1,28 @@
 {
-	"name": "portfolio-mcp",
+	"name": "saagar-portfolio-mcp",
 	"version": "0.1.0",
-	"private": true,
 	"type": "module",
 	"description": "Agent-native MCP server over the public saagarpatel.dev corpus — read-only, stateless.",
 	"license": "MIT",
+	"author": "Saagar Patel",
+	"homepage": "https://saagarpatel.dev",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/saagpatel/portfolio-mcp.git"
+	},
+	"bugs": {
+		"url": "https://github.com/saagpatel/portfolio-mcp/issues"
+	},
+	"keywords": [
+		"mcp",
+		"model-context-protocol",
+		"mcp-server",
+		"ai-agents",
+		"portfolio",
+		"bm25",
+		"cloudflare-workers",
+		"stdio"
+	],
 	"scripts": {
 		"build:corpus": "node scripts/build-corpus.mjs",
 		"build:cli": "esbuild src/stdio.ts --bundle --platform=node --format=esm --outfile=dist/stdio.js",
