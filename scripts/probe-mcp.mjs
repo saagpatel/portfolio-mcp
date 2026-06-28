@@ -4,8 +4,10 @@ const EXPECTED_TOOLS = [
 	"get_document",
 	"get_operant_results",
 	"get_profile",
+	"get_repo_profile",
 	"list_corpus",
 	"list_projects",
+	"list_repo_profiles",
 	"search",
 ];
 
