@@ -1,5 +1,7 @@
 # portfolio-mcp
 
+[![Glama MCP server](https://glama.ai/mcp/servers/saagpatel/portfolio-mcp/badge)](https://glama.ai/mcp/servers/saagpatel/portfolio-mcp)
+
 The agent-native layer of [saagarpatel.dev](https://saagarpatel.dev): a Model
 Context Protocol server that lets any AI agent query Saagar's writing, projects,
 and benchmark results directly, instead of scraping HTML.
