@@ -9,6 +9,9 @@ import type {
 	FullDoc,
 	IndexRecord,
 	ProjectRecord,
+	RepoProfile,
+	RepoProfileIndex,
+	RepoProfileIndexRecord,
 } from "./types";
 
 export interface SearchResult {
@@ -120,6 +123,58 @@ export function createTools(corpus: Corpus) {
 		};
 	}
 
+	/** list_repo_profiles: the public-safe repo answering profile index. */
+	function listRepoProfiles(opts: {
+		attentionState?: string;
+		limit?: number;
+	} = {}):
+		| {
+				available: true;
+				generated_at: string;
+				count: number;
+				profiles: RepoProfileIndexRecord[];
+				public_safety: RepoProfileIndex["public_safety"];
+		  }
+		| { available: false; note: string } {
+		const repoProfiles = corpus.repoProfiles;
+		if (!repoProfiles) {
+			return {
+				available: false,
+				note: "No public repo-profile dataset is baked into this server build.",
+			};
+		}
+		let profiles = repoProfiles.index.profiles;
+		if (opts.attentionState) {
+			profiles = profiles.filter(
+				(profile) => profile.attention_state === opts.attentionState,
+			);
+		}
+		if (opts.limit) profiles = profiles.slice(0, Math.max(opts.limit, 1));
+		return {
+			available: true,
+			generated_at: repoProfiles.index.generated_at,
+			count: profiles.length,
+			profiles,
+			public_safety: repoProfiles.index.public_safety,
+		};
+	}
+
+	/** get_repo_profile: one public-safe repo answering profile by repo id. */
+	function getRepoProfile(repoId: string): RepoProfile | { error: string } {
+		const repoProfiles = corpus.repoProfiles;
+		if (!repoProfiles) {
+			return {
+				error:
+					"No public repo-profile dataset is baked into this server build.",
+			};
+		}
+		return (
+			repoProfiles.profiles[repoId] ?? {
+				error: `No repo profile with repo_id "${repoId}". Call list_repo_profiles to see available ids.`,
+			}
+		);
+	}
+
 	/** get_operant_results: the public, sanitized OPERANT calibration results
 	 * (per-model OCS profiles + headline figures). Returns availability + note
 	 * when no public dataset was baked. */
@@ -150,6 +205,8 @@ export function createTools(corpus: Corpus) {
 		listCorpus,
 		getProfile,
 		listProjects,
+		listRepoProfiles,
+		getRepoProfile,
 		getOperantResults,
 	};
 }

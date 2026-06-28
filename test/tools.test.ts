@@ -109,6 +109,55 @@ const fixture: Corpus = {
 			lifecycle: [],
 		},
 	},
+	repoProfiles: {
+		index: {
+			schema_version: "repo-profile-index/v0.1",
+			generated_at: "2026-06-28T00:00:00Z",
+			source: "fixture",
+			profile_count: 1,
+			profiles: [
+				{
+					repo_id: "githubrepoauditor",
+					display_name: "GithubRepoAuditor",
+					public_reference: "https://github.com/saagpatel/GithubRepoAuditor",
+					attention_state: "active-infra",
+					context_quality: "standard",
+					freshness_status: "fresh",
+					profile_json: "githubrepoauditor.json",
+					receipt_count: 1,
+					pending_proof_count: 0,
+				},
+			],
+			public_safety: {
+				policy: "Names only public-approved pilot repos.",
+				excluded_categories: ["secrets"],
+			},
+		},
+		profiles: {
+			githubrepoauditor: {
+				schema_version: "repo-profile/v0.1",
+				repo_id: "githubrepoauditor",
+				display_name: "GithubRepoAuditor",
+				public_reference: "https://github.com/saagpatel/GithubRepoAuditor",
+				visibility: { status: "public_allowlisted" },
+				summary: {
+					purpose: "repo truth",
+					category: "infrastructure",
+					attention_state: "active-infra",
+					context_quality: "standard",
+					risk_tier: "low",
+				},
+				owner_boundary: {},
+				runbook: {},
+				agent_surfaces: {},
+				proof_refs: [{ status: "available", receipt_id: "tr_fixture" }],
+				freshness: { status: "fresh" },
+				excluded_data: [{ category: "secrets", reason: "not emitted" }],
+				limitations: ["Not a live health guarantee."],
+				integrity: { payload_sha256: "abc" },
+			},
+		},
+	},
 };
 
 const tools = createTools(fixture);
@@ -155,5 +204,23 @@ describe("listProjects", () => {
 		expect(tools.listProjects().count).toBe(2);
 		expect(tools.listProjects({ status: "archived" }).count).toBe(1);
 		expect(tools.listProjects().archive.total).toBe(137);
+	});
+});
+
+describe("repo profile tools", () => {
+	it("lists repo profiles and filters by attention state", () => {
+		const listed = tools.listRepoProfiles({ attentionState: "active-infra" });
+		expect(listed.available).toBe(true);
+		if (listed.available) {
+			expect(listed.count).toBe(1);
+			expect(listed.profiles[0]?.repo_id).toBe("githubrepoauditor");
+			expect(listed.public_safety.excluded_categories).toContain("secrets");
+		}
+	});
+
+	it("gets a repo profile by id and errors for an unknown id", () => {
+		const profile = tools.getRepoProfile("githubrepoauditor");
+		expect("repo_id" in profile && profile.repo_id).toBe("githubrepoauditor");
+		expect("error" in tools.getRepoProfile("missing")).toBe(true);
 	});
 });
