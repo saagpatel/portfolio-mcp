@@ -34,9 +34,9 @@ export interface CorpusIndex {
 export interface ProjectRecord {
 	slug: string;
 	stack: string[];
-	status: string;
-	lifecycle: string;
-	last_active: string;
+	status: string | null; // null when the auditor has no activity signal
+	lifecycle: string | null; // null when the repo declares no lifecycle state
+	last_active: string | null; // YYYY-MM-DD, or null when uncommitted/undated
 	tests: boolean;
 	ci: boolean;
 }
