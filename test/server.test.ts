@@ -1,6 +1,6 @@
 // End-to-end test of the actual Worker fetch handler driving the MCP protocol
 // (stateless streamable HTTP, JSON responses). Verifies the transport wiring, the
-// 5 tools, and the resources against the baked corpus.
+// 8 tools, and the resources against the baked corpus.
 
 import { describe, expect, it } from "vitest";
 import handler from "../src/index";
@@ -57,7 +57,7 @@ describe("MCP server over the Worker fetch handler", () => {
 		expect(json.result.serverInfo.name).toBe("saagarpatel-portfolio");
 	});
 
-	it("lists the 6 read-only tools", async () => {
+	it("lists the 8 read-only tools", async () => {
 		const { json } = await rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" });
 		const names = (
 			json.result.tools as Array<{
@@ -71,8 +71,10 @@ describe("MCP server over the Worker fetch handler", () => {
 			"get_document",
 			"get_operant_results",
 			"get_profile",
+			"get_repo_profile",
 			"list_corpus",
 			"list_projects",
+			"list_repo_profiles",
 			"search",
 		]);
 		expect(
@@ -122,6 +124,27 @@ describe("MCP server over the Worker fetch handler", () => {
 		});
 		const payload = JSON.parse(json.result.content[0].text);
 		expect(payload).toHaveProperty("available");
+	});
+
+	it("calls list_repo_profiles and get_repo_profile", async () => {
+		const listed = await rpc({
+			jsonrpc: "2.0",
+			id: 10,
+			method: "tools/call",
+			params: { name: "list_repo_profiles", arguments: {} },
+		});
+		const listPayload = JSON.parse(listed.json.result.content[0].text);
+		expect(listPayload).toHaveProperty("available");
+
+		const repoId = listPayload.profiles?.[0]?.repo_id ?? "githubrepoauditor";
+		const fetched = await rpc({
+			jsonrpc: "2.0",
+			id: 11,
+			method: "tools/call",
+			params: { name: "get_repo_profile", arguments: { repoId } },
+		});
+		const profilePayload = JSON.parse(fetched.json.result.content[0].text);
+		expect(profilePayload.repo_id ?? profilePayload.error).toBeTruthy();
 	});
 
 	it("lists the two prompts", async () => {

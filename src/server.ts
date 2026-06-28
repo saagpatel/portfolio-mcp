@@ -27,9 +27,9 @@ const SECTIONS = [
 
 const INSTRUCTIONS =
 	"Read-only access to Saagar Patel's writing (essays, a book, field notes), " +
-	"projects, and OPERANT benchmark results, served from saagarpatel.dev. Start " +
-	"with get_profile or list_corpus to orient, search to find by topic, and " +
-	"get_document to read full text.";
+	"projects, public-safe repo profiles, and OPERANT benchmark results, served " +
+	"from saagarpatel.dev. Start with get_profile or list_corpus to orient, " +
+	"search to find by topic, and get_document to read full text.";
 
 const jsonResult = (data: unknown) => ({
 	content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
@@ -135,6 +135,52 @@ export function buildServer(): McpServer {
 		},
 		async ({ status, limit }) =>
 			jsonResult(tools.listProjects({ status, limit })),
+	);
+
+	server.registerTool(
+		"list_repo_profiles",
+		{
+			title: "List repo profiles",
+			description:
+				"List public-safe repo answering profiles with repo id, attention state, freshness, " +
+				"and proof counts. Profiles are static artifacts baked from saagarpatel.dev, not live repo health.",
+			inputSchema: {
+				attentionState: z
+					.string()
+					.optional()
+					.describe(
+						'Filter by attention state, e.g. "active-infra" or "decision-needed"',
+					),
+				limit: z
+					.number()
+					.int()
+					.min(1)
+					.max(25)
+					.optional()
+					.describe("Max profiles"),
+			},
+			annotations: { readOnlyHint: true, openWorldHint: false },
+		},
+		async ({ attentionState, limit }) =>
+			jsonResult(tools.listRepoProfiles({ attentionState, limit })),
+	);
+
+	server.registerTool(
+		"get_repo_profile",
+		{
+			title: "Get repo profile",
+			description:
+				"Return one public-safe repo answering profile by repo_id, including purpose, safe commands, " +
+				"agent surfaces, proof refs, freshness, exclusions, limitations, and integrity metadata.",
+			inputSchema: {
+				repoId: z
+					.string()
+					.min(1)
+					.describe('Repo profile id, e.g. "githubrepoauditor"'),
+			},
+			annotations: { readOnlyHint: true, openWorldHint: false },
+		},
+		async ({ repoId }) => jsonResult(tools.getRepoProfile(repoId)),
 	);
 
 	server.registerTool(

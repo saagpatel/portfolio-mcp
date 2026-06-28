@@ -59,6 +59,64 @@ export interface ProjectsData {
 	archive: ProjectsArchive;
 }
 
+export interface RepoProfileIndexRecord {
+	repo_id: string;
+	display_name: string;
+	public_reference: string;
+	attention_state: string;
+	context_quality: string;
+	freshness_status: string;
+	profile_json: string;
+	receipt_count: number;
+	pending_proof_count?: number;
+}
+
+export interface RepoProfileIndex {
+	schema_version: string;
+	generated_at: string;
+	source: string;
+	source_schema_version?: string;
+	profile_count: number;
+	profiles: RepoProfileIndexRecord[];
+	public_safety: {
+		policy: string;
+		excluded_categories: string[];
+	};
+	integrity?: Record<string, unknown>;
+}
+
+export interface RepoProfile {
+	schema_version: string;
+	repo_id: string;
+	display_name: string;
+	public_reference: string;
+	visibility: Record<string, unknown>;
+	summary: {
+		purpose: string;
+		category: string;
+		attention_state: string;
+		context_quality: string;
+		stack?: string[];
+		has_tests?: boolean;
+		has_ci?: boolean;
+		last_meaningful_activity?: string | null;
+		risk_tier?: string;
+	};
+	owner_boundary: Record<string, unknown>;
+	runbook: Record<string, unknown>;
+	agent_surfaces: Record<string, unknown>;
+	proof_refs: Array<Record<string, unknown>>;
+	freshness: Record<string, unknown>;
+	excluded_data: Array<Record<string, unknown>>;
+	limitations: string[];
+	integrity: Record<string, unknown>;
+}
+
+export interface RepoProfilesData {
+	index: RepoProfileIndex;
+	profiles: Record<string, RepoProfile>;
+}
+
 /** One model's calibration profile from the public OPERANT mirror. */
 export interface OperantModel {
 	display_name: string;
@@ -87,5 +145,6 @@ export interface Corpus {
 	index: CorpusIndex;
 	documents: Record<string, FullDoc>; // keyed by id
 	projects: ProjectsData;
+	repoProfiles?: RepoProfilesData | null; // optional until the profile artifacts are published
 	operant?: OperantData | null; // optional: only present when baked from local sources
 }

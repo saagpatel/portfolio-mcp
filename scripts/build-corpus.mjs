@@ -26,12 +26,27 @@ async function fromUrl(base) {
 		if (!res.ok) throw new Error(`GET ${path} -> ${res.status}`);
 		return res.json();
 	};
+	const getOptional = async (path) => {
+		const res = await fetch(`${base}/${path}`);
+		if (res.status === 404) return null;
+		if (!res.ok) throw new Error(`GET ${path} -> ${res.status}`);
+		return res.json();
+	};
 	const index = await get("corpus-index.json");
 	const documents = {};
 	for (const d of index.documents) documents[d.id] = await get(`corpus/${d.id}.json`);
 	const projects = await get("projects-data.json");
+	const repoProfileIndex = await getOptional("repo-profiles/index.json");
+	let repoProfiles = null;
+	if (repoProfileIndex) {
+		const profiles = {};
+		for (const item of repoProfileIndex.profiles ?? []) {
+			profiles[item.repo_id] = await get(`repo-profiles/${item.profile_json}`);
+		}
+		repoProfiles = { index: repoProfileIndex, profiles };
+	}
 	// OPERANT sources are build inputs, not published at a URL — omitted in url mode.
-	return { index, documents, projects, operant: null };
+	return { index, documents, projects, repoProfiles, operant: null };
 }
 
 function fromDir(dir) {
@@ -48,10 +63,19 @@ function fromDir(dir) {
 			return null;
 		}
 	};
+	const repoProfileIndex = readOptional("repo-profiles/index.json");
+	let repoProfiles = null;
+	if (repoProfileIndex) {
+		const profiles = {};
+		for (const item of repoProfileIndex.profiles ?? []) {
+			profiles[item.repo_id] = read(`repo-profiles/${item.profile_json}`);
+		}
+		repoProfiles = { index: repoProfileIndex, profiles };
+	}
 	const profiles = readOptional("scripts/sources/operant/calibration-profiles.json");
 	const figures = readOptional("scripts/sources/operant/operant-figures.json");
 	const operant = profiles && figures ? { profiles, figures } : null;
-	return { index, documents, projects, operant };
+	return { index, documents, projects, repoProfiles, operant };
 }
 
 const corpus = urlArg ? await fromUrl(urlArg) : fromDir(dirArg);
@@ -66,5 +90,6 @@ writeFileSync(new URL("../src/corpus.generated.ts", import.meta.url), out);
 console.log(
 	`baked corpus: ${corpus.index.documents.length} docs, ` +
 		`${Object.keys(corpus.projects.curated).length} curated projects ` +
+		`${corpus.repoProfiles?.index.profile_count ?? 0} repo profiles ` +
 		`(source: ${urlArg ?? resolve(dirArg)})`,
 );
