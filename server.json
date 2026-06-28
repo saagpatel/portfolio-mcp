@@ -1,0 +1,30 @@
+{
+	"$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+	"name": "io.github.saagpatel/portfolio-mcp",
+	"title": "saagarpatel.dev Portfolio",
+	"description": "Agent-native MCP server over the public saagarpatel.dev corpus. Read-only, stateless.",
+	"version": "0.1.0",
+	"websiteUrl": "https://saagarpatel.dev",
+	"repository": {
+		"url": "https://github.com/saagpatel/portfolio-mcp",
+		"source": "github"
+	},
+	"packages": [
+		{
+			"registryType": "npm",
+			"registryBaseUrl": "https://registry.npmjs.org",
+			"identifier": "saagar-portfolio-mcp",
+			"version": "0.1.0",
+			"runtimeHint": "npx",
+			"transport": {
+				"type": "stdio"
+			}
+		}
+	],
+	"remotes": [
+		{
+			"type": "streamable-http",
+			"url": "https://mcp.saagarpatel.dev/mcp"
+		}
+	]
+}

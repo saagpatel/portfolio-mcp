@@ -1,6 +1,7 @@
 {
 	"name": "saagar-portfolio-mcp",
 	"version": "0.1.0",
+	"mcpName": "io.github.saagpatel/portfolio-mcp",
 	"type": "module",
 	"description": "Agent-native MCP server over the public saagarpatel.dev corpus — read-only, stateless.",
 	"license": "MIT",
