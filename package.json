@@ -4,6 +4,7 @@
 	"private": true,
 	"type": "module",
 	"description": "Agent-native MCP server over the public saagarpatel.dev corpus — read-only, stateless.",
+	"license": "MIT",
 	"scripts": {
 		"build:corpus": "node scripts/build-corpus.mjs",
 		"build:cli": "esbuild src/stdio.ts --bundle --platform=node --format=esm --outfile=dist/stdio.js",
