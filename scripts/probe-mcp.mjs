@@ -1,5 +1,12 @@
 #!/usr/bin/env node
+// Probe the live MCP endpoint: the shared protocol assertions (initialize,
+// tools/list, read-only annotations) come from saagar-mcp-kit's driver; this
+// script keeps only what is portfolio-specific — the expected tool set, the
+// server name, and the two domain calls (search + get_operant_results).
+import { parseToolPayload, probeHttpServer, rpc } from "saagar-mcp-kit/http-probe";
+
 const DEFAULT_ENDPOINT = "https://portfolio-mcp.saagar210.workers.dev/mcp";
+const SERVER_NAME = "saagarpatel-portfolio";
 const EXPECTED_TOOLS = [
 	"get_document",
 	"get_operant_results",
@@ -36,76 +43,15 @@ function parseArgs(argv) {
 	return out;
 }
 
-async function rpc(endpoint, id, method, params) {
-	const res = await fetch(endpoint, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			Accept: "application/json, text/event-stream",
-		},
-		body: JSON.stringify({
-			jsonrpc: "2.0",
-			id,
-			method,
-			...(params === undefined ? {} : { params }),
-		}),
-	});
-	const text = await res.text();
-	let json;
-	try {
-		json = JSON.parse(text);
-	} catch (err) {
-		throw new Error(
-			`${method} returned non-JSON HTTP ${res.status}: ${text.slice(0, 300)}`,
-			{ cause: err },
-		);
-	}
-	if (res.status !== 200) {
-		throw new Error(`${method} returned HTTP ${res.status}: ${text.slice(0, 300)}`);
-	}
-	if (json.error) {
-		throw new Error(`${method} JSON-RPC error: ${JSON.stringify(json.error)}`);
-	}
-	return {
-		status: res.status,
-		contentType: res.headers.get("content-type"),
-		allowOrigin: res.headers.get("access-control-allow-origin"),
-		json,
-	};
-}
-
-function assertSame(actual, expected, label) {
-	const a = JSON.stringify(actual);
-	const e = JSON.stringify(expected);
-	if (a !== e) throw new Error(`${label} mismatch: expected ${e}, got ${a}`);
-}
-
-function parseToolPayload(result, label) {
-	const text = result?.content?.[0]?.text;
-	if (typeof text !== "string") throw new Error(`${label} returned no text payload`);
-	return JSON.parse(text);
-}
-
 export async function probeEndpoint(endpoint = DEFAULT_ENDPOINT, options = {}) {
 	const query = options.query || "verification";
 	const limit = options.limit || 2;
 
-	const initialize = await rpc(endpoint, 1, "initialize", {
-		protocolVersion: "2025-06-18",
-		capabilities: {},
-		clientInfo: { name: "portfolio-mcp-probe", version: "1.0.0" },
+	const shared = await probeHttpServer(endpoint, {
+		serverName: SERVER_NAME,
+		tools: EXPECTED_TOOLS,
+		clientName: "portfolio-mcp-probe",
 	});
-	if (initialize.json.result?.serverInfo?.name !== "saagarpatel-portfolio") {
-		throw new Error("initialize did not return the expected server name");
-	}
-
-	const toolsList = await rpc(endpoint, 2, "tools/list");
-	const tools = toolsList.json.result?.tools || [];
-	const toolNames = tools.map((tool) => tool.name).sort();
-	assertSame(toolNames, EXPECTED_TOOLS, "tools/list");
-	if (!tools.every((tool) => tool.annotations?.readOnlyHint === true)) {
-		throw new Error("not every tool is annotated readOnlyHint=true");
-	}
 
 	const search = await rpc(endpoint, 3, "tools/call", {
 		name: "search",
@@ -126,24 +72,7 @@ export async function probeEndpoint(endpoint = DEFAULT_ENDPOINT, options = {}) {
 	}
 
 	return {
-		endpoint,
-		initialize: {
-			status: initialize.status,
-			contentType: initialize.contentType,
-			allowOrigin: initialize.allowOrigin,
-			serverInfo: initialize.json.result.serverInfo,
-			protocolVersion: initialize.json.result.protocolVersion,
-		},
-		toolsList: {
-			status: toolsList.status,
-			contentType: toolsList.contentType,
-			allowOrigin: toolsList.allowOrigin,
-			count: tools.length,
-			tools: tools.map((tool) => ({
-				name: tool.name,
-				readOnly: tool.annotations?.readOnlyHint === true,
-			})),
-		},
+		...shared,
 		searchCall: {
 			status: search.status,
 			contentType: search.contentType,

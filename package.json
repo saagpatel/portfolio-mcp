@@ -30,6 +30,10 @@
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
 		"probe:mcp": "node scripts/probe-mcp.mjs",
+		"sign": "mcp-kit-sign sign --manifest=../portfolio-index/.well-known/mcp.json",
+		"sign:verify": "mcp-kit-sign verify --manifest=../portfolio-index/.well-known/mcp.json",
+		"smoke": "mcp-kit-smoke -- node scripts/probe-mcp.mjs --endpoint http://127.0.0.1:{port}/mcp",
+		"parity": "mcp-kit-parity",
 		"dogfood": "npm run build:cli && node scripts/dogfood.mjs",
 		"dev": "wrangler dev",
 		"deploy": "wrangler deploy"
@@ -47,6 +51,7 @@
 	"devDependencies": {
 		"@cloudflare/workers-types": "^4",
 		"esbuild": "0.28.1",
+		"saagar-mcp-kit": "^0.1.0",
 		"typescript": "^5",
 		"vite": "6.4.3",
 		"vitest": "3.2.6",
