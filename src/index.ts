@@ -33,6 +33,16 @@ export default {
 				{ status: 404, headers: CORS },
 			);
 		}
+		if (request.method !== "POST") {
+			return Response.json(
+				{
+					error: "Method not allowed",
+					mcp_endpoint: "/mcp",
+					allowed_methods: ["POST", "OPTIONS"],
+				},
+				{ status: 405, headers: { ...CORS, Allow: "POST, OPTIONS" } },
+			);
+		}
 
 		const server = buildServer();
 		const transport = new WebStandardStreamableHTTPServerTransport({
