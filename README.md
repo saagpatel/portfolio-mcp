@@ -65,8 +65,7 @@ src/
   stdio.ts            Layer 2 stdio transport (the npx CLI)
 scripts/
   build-corpus.mjs    bakes Layer 0 (+ OPERANT) into corpus.generated.ts
-  probe-mcp.mjs        probes an MCP HTTP endpoint: initialize, tools/list, search, OPERANT
-  smoke-mcp.sh        boots wrangler dev, drives the MCP protocol under workerd
+  probe-mcp.mjs        probes an MCP HTTP endpoint (saagar-mcp-kit driver + domain calls)
   audit-mcp.sh        connected MCPAudit scan of this server (dogfood)
 test/                 vitest: bm25, tools, full-protocol server tests
 ```
@@ -79,7 +78,7 @@ npm run build:corpus          # bake from ../portfolio-index (or --url=https://s
 npm run typecheck
 npm test
 npm run dev                   # wrangler dev -> http://localhost:8787/mcp
-bash scripts/smoke-mcp.sh     # end-to-end MCP smoke under the real workerd runtime
+npm run smoke                 # end-to-end MCP smoke under the real workerd runtime (saagar-mcp-kit)
 npm run probe:mcp             # live Worker probe, or set PORTFOLIO_MCP_ENDPOINT
 ```
 
@@ -119,15 +118,15 @@ Once published, anyone can run it locally with `npx saagar-portfolio-mcp` (no in
 ## Sign the manifest (optional trust signal)
 
 Ed25519-sign `.well-known/mcp.json` so an agent or registry can verify it authentically
-comes from Saagar. Zero dependencies (Node built-in crypto):
+comes from Saagar (via `saagar-mcp-kit`'s signing CLI, Node built-in crypto):
 
 ```sh
-node scripts/sign-manifest.mjs gen-key   # one-time; private key -> .signing/ (gitignored, NEVER commit)
-node scripts/sign-manifest.mjs sign      # writes <manifest>.sig + publishes mcp-ed25519.pub
-node scripts/sign-manifest.mjs verify    # checks manifest bytes against .sig + public key
+npx mcp-kit-sign gen-key --manifest=../portfolio-index/.well-known/mcp.json  # one-time; private key -> .signing/ (gitignored, NEVER commit)
+npm run sign                             # writes <manifest>.sig + publishes mcp-ed25519.pub
+npm run sign:verify                      # checks manifest bytes against .sig + public key
 ```
 
-Defaults target the sibling `portfolio-index` manifest (override with `--manifest=`/`--key=`/`--pub=`/`--sig=`).
+Override paths with `--manifest=`/`--key=`/`--pub=`/`--sig=`.
 Commit the `.sig` + `mcp-ed25519.pub` (never the private key) into portfolio-index next to the manifest, then
 redeploy the site. Re-run `sign` whenever the manifest changes (it signs the exact served bytes).
 

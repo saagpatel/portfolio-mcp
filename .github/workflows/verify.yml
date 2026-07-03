@@ -22,4 +22,5 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      - run: bash scripts/smoke-mcp.sh
+      - run: npm run smoke
+      - run: npm run parity
