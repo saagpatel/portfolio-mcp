@@ -51,6 +51,20 @@ describe("MCP server over the Worker fetch handler", () => {
 		expect(res.headers.get("Access-Control-Allow-Origin")).toBe("*");
 	});
 
+	it("rejects unsupported MCP methods without opening a stream", async () => {
+		const res = await handler.fetch(
+			new Request(ENDPOINT, {
+				method: "GET",
+				headers: { Accept: "text/event-stream" },
+			}),
+		);
+		const json = (await res.json()) as { error?: string };
+
+		expect(res.status).toBe(405);
+		expect(res.headers.get("Allow")).toBe("POST, OPTIONS");
+		expect(json.error).toBe("Method not allowed");
+	});
+
 	it("initializes and reports server info", async () => {
 		const { status, json } = await init();
 		expect(status).toBe(200);
