@@ -14,6 +14,10 @@ export interface IndexRecord {
 	url: string; // canonical https URL
 	date: string | null; // YYYY-MM-DD git commit date, or null if uncommitted
 	word_count: number;
+	// Epistemic status (position | verified | field-tested | evolving) added to the
+	// site corpus after this layer's first bake. Optional: some pages carry none.
+	// Kept as a passthrough string so a new status value never breaks the bake.
+	status?: string;
 }
 
 /** One corpus/<id>.json: the index record plus the full Markdown body. */
