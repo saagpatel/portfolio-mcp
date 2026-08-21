@@ -1,60 +1,63 @@
 {
-	"name": "saagar-portfolio-mcp",
-	"version": "0.1.0",
-	"mcpName": "io.github.saagpatel/portfolio-mcp",
-	"type": "module",
-	"description": "Agent-native MCP server over the public saagarpatel.dev corpus — read-only, stateless.",
-	"license": "MIT",
-	"author": "Saagar Patel",
-	"homepage": "https://saagarpatel.dev",
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/saagpatel/portfolio-mcp.git"
-	},
-	"bugs": {
-		"url": "https://github.com/saagpatel/portfolio-mcp/issues"
-	},
-	"keywords": [
-		"mcp",
-		"model-context-protocol",
-		"mcp-server",
-		"ai-agents",
-		"portfolio",
-		"bm25",
-		"cloudflare-workers",
-		"stdio"
-	],
-	"scripts": {
-		"build:corpus": "node scripts/build-corpus.mjs",
-		"build:cli": "esbuild src/stdio.ts --bundle --platform=node --format=esm --outfile=dist/stdio.js",
-		"typecheck": "tsc --noEmit",
-		"test": "vitest run",
-		"probe:mcp": "node scripts/probe-mcp.mjs",
-		"sign": "mcp-kit-sign sign --manifest=../portfolio-index/.well-known/mcp.json",
-		"sign:verify": "mcp-kit-sign verify --manifest=../portfolio-index/.well-known/mcp.json",
-		"smoke": "mcp-kit-smoke -- node scripts/probe-mcp.mjs --endpoint http://127.0.0.1:{port}/mcp",
-		"parity": "mcp-kit-parity",
-		"dogfood": "npm run build:cli && node scripts/dogfood.mjs",
-		"dev": "wrangler dev",
-		"deploy": "wrangler deploy"
-	},
-	"bin": {
-		"saagar-portfolio-mcp": "dist/stdio.js"
-	},
-	"files": [
-		"dist"
-	],
-	"dependencies": {
-		"@modelcontextprotocol/sdk": "1.30.0",
-		"zod": "^3"
-	},
-	"devDependencies": {
-		"@cloudflare/workers-types": "^5",
-		"esbuild": "0.28.1",
-		"saagar-mcp-kit": "^0.1.0",
-		"typescript": "^5",
-		"vite": "6.4.3",
-		"vitest": "3.2.6",
-		"wrangler": "^4"
-	}
+  "name": "saagar-portfolio-mcp",
+  "version": "0.1.0",
+  "mcpName": "io.github.saagpatel/portfolio-mcp",
+  "type": "module",
+  "description": "Agent-native MCP server over the public saagarpatel.dev corpus \u2014 read-only, stateless.",
+  "license": "MIT",
+  "author": "Saagar Patel",
+  "homepage": "https://saagarpatel.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/saagpatel/portfolio-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/saagpatel/portfolio-mcp/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "mcp-server",
+    "ai-agents",
+    "portfolio",
+    "bm25",
+    "cloudflare-workers",
+    "stdio"
+  ],
+  "scripts": {
+    "build:corpus": "node scripts/build-corpus.mjs",
+    "build:cli": "esbuild src/stdio.ts --bundle --platform=node --format=esm --outfile=dist/stdio.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "probe:mcp": "node scripts/probe-mcp.mjs",
+    "sign": "mcp-kit-sign sign --manifest=../portfolio-index/.well-known/mcp.json",
+    "sign:verify": "mcp-kit-sign verify --manifest=../portfolio-index/.well-known/mcp.json",
+    "smoke": "mcp-kit-smoke -- node scripts/probe-mcp.mjs --endpoint http://127.0.0.1:{port}/mcp",
+    "parity": "mcp-kit-parity",
+    "dogfood": "npm run build:cli && node scripts/dogfood.mjs",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "bin": {
+    "saagar-portfolio-mcp": "dist/stdio.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "zod": "^3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5",
+    "esbuild": "0.28.1",
+    "saagar-mcp-kit": "^0.1.0",
+    "typescript": "^5",
+    "vite": "6.4.3",
+    "vitest": "3.2.6",
+    "wrangler": "^4"
+  },
+  "overrides": {
+    "undici": "^7.29.0"
+  }
 }
