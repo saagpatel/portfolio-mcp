@@ -34,4 +34,24 @@ portfolio-mcp: The agent-native layer of [saagarpatel.dev](https://saagarpatel.d
 
 Use this context plus the README and supporting docs to resume the next active task, then promote the repo beyond minimum-viable by capturing a dedicated handoff, roadmap, or discovery artifact.
 
+## Cursor Cloud specific instructions
+
+Cursor Cloud uses `.cursor/environment.json` to install the committed npm lockfile
+on Ubuntu. The checked-in public-safe corpus is sufficient for normal code,
+contract, stdio, and Worker test work; do not import local portfolio data or
+private sibling-repository content.
+
+Verify ordinary changes with:
+
+```sh
+npm run typecheck
+npm test
+npm run smoke
+npm run parity
+```
+
+Publishing, signing, and Cloudflare deployment require separate authorization and
+credentials. Never copy signing keys, Wrangler credentials, or local `.env` files
+into a cloud environment.
+
 <!-- portfolio-context:end -->

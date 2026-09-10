@@ -1,0 +1,5 @@
+{
+  "name": "portfolio-mcp",
+  "disableAllMcpServers": true,
+  "install": "set -eu; npm ci; npm run build:cli"
+}
