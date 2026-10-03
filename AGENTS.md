@@ -7,12 +7,12 @@ portfolio-mcp: The agent-native layer of [saagarpatel.dev](https://saagarpatel.d
 
 ## Current State
 
-- **Built + locally verified:** Layers 0–2. Shared core + 8 tools + Resources + 2 prompts +
-  `get_operant_results`. typecheck clean; test suite passes (incl. full MCP protocol via the
-  fetch handler). Live Worker probe and deploy remain operator-gated. Public discovery
+- **Built + locally verified:** Layers 0–2. Shared core + 8 tools (including
+  `get_operant_results`) + Resources + 2 prompts. typecheck clean; test suite passes
+  (incl. full MCP protocol via the fetch handler). Live Worker probe and deploy remain operator-gated. Public discovery
   advertises `mcp.saagarpatel.dev` with a valid Ed25519-signed manifest.
-- **Gated / next:** publish the stdio package (`npm publish`, after removing
-  `"private": true` by explicit operator approval only), glama.ai registry listing, and
+- **Gated / next:** publish the stdio package (`npm publish`, by explicit operator approval only;
+  `package.json` already has no `private` field), glama.ai registry listing, and
   continued signed-manifest readback checks after website manifest changes.
 
 ## Stack
