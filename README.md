@@ -72,7 +72,9 @@ test/                 vitest: bm25, tools, full-protocol server tests
 
 ## Develop
 
-From the repository root, use Node 24 (matching CI). The committed public-safe
+From the repository root, use Node 24 (matching CI). The local smoke harness also
+requires Bash, Python 3, curl, and standard Unix process utilities (including pkill).
+The committed public-safe
 corpus is sufficient for routine verification; no sibling checkout, local
 portfolio import, signing key, or Cloudflare credentials are needed.
 
@@ -83,7 +85,7 @@ npm run typecheck
 npm test                     # broader Vitest suite
 npm run build:cli             # build local stdio transport
 npm run smoke                # disposable local workerd/protocol check
-npm run parity               # local transport contract check
+npm run parity               # server.json/package.json version parity
 ```
 
 No separate lint/format script is defined. See `package.json` and
