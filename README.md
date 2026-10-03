@@ -38,16 +38,16 @@ SSRF / exfil surface).
 | `get_profile` | The "who is this" card (about / now / uses) |
 | `list_projects` | Curated public-safe projects + anonymized aggregates |
 | `list_repo_profiles` | Public-safe repo profile index with freshness and proof counts |
-| `get_repo_profile` | One repo answering profile by `repo_id` |
+| `get_repo_profile` | One repo answering profile by the `repoId` argument |
 | `get_operant_results` | Public, sanitized OPERANT calibration results (per-model OCS) |
 
-Documents are also exposed as **Resources** (`portfolio://essays/{slug}`, `book/{slug}`,
-`notes/{slug}`, `portfolio://profile`), and there are two **Prompts**:
+Documents are also exposed as **Resources** (`portfolio://essays/{slug}`, `portfolio://book/{slug}`,
+`portfolio://notes/{slug}`, `portfolio://profile`), and there are two **Prompts**:
 `introduce_saagar` and `summarize_writing_on` (grounded in a live `search`).
 
 ## Retrieval
 
-BM25 over a baked index (no embeddings in v1 — the corpus is ~50 small docs and the
+BM25 over a baked index (no embeddings in v1 — the committed corpus contains 166 docs and the
 calling LLM supplies the semantics). Titles are boosted. Embeddings are a measured
 Phase 3 upgrade, added only if retrieval quality proves insufficient.
 
@@ -95,9 +95,10 @@ use synthetic corpus/protocol tests and, when useful, the local inspector below.
 
 `npm run build:corpus` regenerates source from a sibling checkout or an explicit
 network URL; it is not required for ordinary fixture verification. `npm run
-probe:mcp` targets the live Worker by default, and the connected audit invokes an
-external server. Keep those separate from local gates; deployment and signing
-remain operator-gated as described below.
+probe:mcp` targets the live Worker by default, and the connected audit starts a
+local Worker and invokes the separately installed `mcp-audit` CLI. Keep those
+separate from local gates; deployment and signing remain operator-gated as
+described below.
 
 Inspect either transport with the MCP inspector:
 
@@ -160,10 +161,10 @@ server's findings 62 → 14. The genuine tool surface scans clean (`high_risk_se
 
 ## Status
 
-- **Built + locally verified:** Layers 0–2. Shared core + 8 tools + Resources + 2 prompts +
-  `get_operant_results`. typecheck clean; test suite passes (incl. full MCP protocol via the
-  fetch handler). Live Worker probe and deploy remain operator-gated. Public discovery
+- **Built + locally verified:** Layers 0–2. Shared core + 8 tools (including
+  `get_operant_results`) + Resources + 2 prompts. typecheck clean; test suite passes
+  (incl. full MCP protocol via the fetch handler). Live Worker probe and deploy remain operator-gated. Public discovery
   advertises `mcp.saagarpatel.dev` with a valid Ed25519-signed manifest.
-- **Gated / next:** publish the stdio package (`npm publish`, after removing
-  `"private": true` by explicit operator approval only), glama.ai registry listing, and
+- **Gated / next:** publish the stdio package (`npm publish`, by explicit operator approval only;
+  `package.json` already has no `private` field), glama.ai registry listing, and
   continued signed-manifest readback checks after website manifest changes.
