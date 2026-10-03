@@ -72,15 +72,30 @@ test/                 vitest: bm25, tools, full-protocol server tests
 
 ## Develop
 
+From the repository root, use Node 24 (matching CI). The committed public-safe
+corpus is sufficient for routine verification; no sibling checkout, local
+portfolio import, signing key, or Cloudflare credentials are needed.
+
 ```sh
-npm install
-npm run build:corpus          # bake from ../portfolio-index (or --url=https://saagarpatel.dev)
+npm ci
+npm test -- test/bm25.test.ts  # focused injected-corpus retrieval fixtures
 npm run typecheck
-npm test
-npm run dev                   # wrangler dev -> http://localhost:8787/mcp
-npm run smoke                 # end-to-end MCP smoke under the real workerd runtime (saagar-mcp-kit)
-npm run probe:mcp             # live Worker probe, or set PORTFOLIO_MCP_ENDPOINT
+npm test                     # broader Vitest suite
+npm run build:cli             # build local stdio transport
+npm run smoke                # disposable local workerd/protocol check
+npm run parity               # local transport contract check
 ```
+
+No separate lint/format script is defined. See `package.json` and
+[CI](.github/workflows/verify.yml) for the authoritative commands. `npm run dev`
+starts the local Worker. There is no browser UI here: for MCP response changes,
+use synthetic corpus/protocol tests and, when useful, the local inspector below.
+
+`npm run build:corpus` regenerates source from a sibling checkout or an explicit
+network URL; it is not required for ordinary fixture verification. `npm run
+probe:mcp` targets the live Worker by default, and the connected audit invokes an
+external server. Keep those separate from local gates; deployment and signing
+remain operator-gated as described below.
 
 Inspect either transport with the MCP inspector:
 
