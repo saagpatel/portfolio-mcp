@@ -168,9 +168,41 @@ describe("search", () => {
 		expect(r.results[0]?.id).toBe("writing/a");
 		expect(r.results[0]?.snippet).toContain("verification");
 	});
-	it("filters by section", () => {
-		const r = tools.search("flywheel", { section: "essay" });
-		expect(r.results.every((x) => x.type === "essay")).toBe(true);
+	it("filters the full ranking before applying the result limit", () => {
+		const distractors = Array.from({ length: 60 }, (_, n) => ({
+			id: `notes/decoy-${n}`,
+			slug: `decoy-${n}`,
+			type: "note" as const,
+			title: `Flywheel ${n}`,
+			description: "",
+			url: `https://x.dev/notes/decoy-${n}`,
+			date: null,
+			word_count: 12,
+			body_markdown: "flywheel flywheel flywheel flywheel flywheel",
+		}));
+		const essay = {
+			...fixture.documents["writing/a"],
+			description: "flywheel",
+			body_markdown: "flywheel",
+		};
+		const manyHits: Corpus = {
+			...fixture,
+			index: {
+				...fixture.index,
+				documents: [...fixture.index.documents, ...distractors],
+			},
+			documents: {
+				...fixture.documents,
+				[essay.id]: essay,
+				...Object.fromEntries(distractors.map((doc) => [doc.id, doc])),
+			},
+		};
+		const result = createTools(manyHits).search("flywheel", {
+			section: "essay",
+		});
+
+		expect(result.results).toHaveLength(1);
+		expect(result.results[0]?.id).toBe("writing/a");
 	});
 });
 
@@ -181,6 +213,7 @@ describe("getDocument", () => {
 	});
 	it("errors for an unknown id", () => {
 		expect("error" in tools.getDocument("nope")).toBe(true);
+		expect("error" in tools.getDocument("__proto__")).toBe(true);
 	});
 });
 
@@ -222,5 +255,6 @@ describe("repo profile tools", () => {
 		const profile = tools.getRepoProfile("githubrepoauditor");
 		expect("repo_id" in profile && profile.repo_id).toBe("githubrepoauditor");
 		expect("error" in tools.getRepoProfile("missing")).toBe(true);
+		expect("error" in tools.getRepoProfile("__proto__")).toBe(true);
 	});
 });
