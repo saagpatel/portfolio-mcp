@@ -2,7 +2,7 @@
 // (stateless streamable HTTP, JSON responses). Verifies the transport wiring, the
 // 8 tools, and the resources against the baked corpus.
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import handler from "../src/index";
 
 const ENDPOINT = "http://localhost/mcp";
@@ -11,7 +11,41 @@ const HEADERS = {
 	Accept: "application/json, text/event-stream",
 };
 
-async function rpc(body: unknown): Promise<{ status: number; json: any }> {
+type RpcResponse = {
+	result?: {
+		serverInfo?: { name?: string };
+		tools?: Array<{
+			name: string;
+			annotations?: { readOnlyHint?: boolean };
+		}>;
+		content?: Array<{ text: string }>;
+		resources?: unknown[];
+		prompts?: Array<{ name: string }>;
+		messages?: Array<{ content: { text: string } }>;
+	};
+	error?: { code: number; message: string };
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null;
+}
+
+function resultOf(response: RpcResponse): NonNullable<RpcResponse["result"]> {
+	if (!response.result) throw new Error("Expected a JSON-RPC result");
+	return response.result;
+}
+
+function textPayload(response: RpcResponse): Record<string, unknown> {
+	const text = resultOf(response).content?.[0]?.text;
+	if (!text) throw new Error("Expected a text result");
+	const parsed: unknown = JSON.parse(text);
+	if (!isRecord(parsed)) throw new Error("Expected an object text result");
+	return parsed;
+}
+
+async function rpc(
+	body: unknown,
+): Promise<{ status: number; json: RpcResponse }> {
 	const res = await handler.fetch(
 		new Request(ENDPOINT, {
 			method: "POST",
@@ -20,7 +54,9 @@ async function rpc(body: unknown): Promise<{ status: number; json: any }> {
 		}),
 	);
 	const text = await res.text();
-	return { status: res.status, json: text ? JSON.parse(text) : null };
+	const parsed: unknown = text ? JSON.parse(text) : null;
+	if (!isRecord(parsed)) throw new Error("Expected a JSON-RPC response object");
+	return { status: res.status, json: parsed as RpcResponse };
 }
 
 const init = () =>
@@ -68,19 +104,13 @@ describe("MCP server over the Worker fetch handler", () => {
 	it("initializes and reports server info", async () => {
 		const { status, json } = await init();
 		expect(status).toBe(200);
-		expect(json.result.serverInfo.name).toBe("saagarpatel-portfolio");
+		expect(resultOf(json).serverInfo?.name).toBe("saagarpatel-portfolio");
 	});
 
 	it("lists the 8 read-only tools", async () => {
 		const { json } = await rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" });
-		const names = (
-			json.result.tools as Array<{
-				name: string;
-				annotations?: { readOnlyHint?: boolean };
-			}>
-		)
-			.map((t) => t.name)
-			.sort();
+		const tools = json.result?.tools ?? [];
+		const names = tools.map((t) => t.name).sort();
 		expect(names).toEqual([
 			"get_document",
 			"get_operant_results",
@@ -91,9 +121,7 @@ describe("MCP server over the Worker fetch handler", () => {
 			"list_repo_profiles",
 			"search",
 		]);
-		expect(
-			json.result.tools.every((t: any) => t.annotations?.readOnlyHint === true),
-		).toBe(true);
+		expect(tools.every((t) => t.annotations?.readOnlyHint === true)).toBe(true);
 	});
 
 	it("calls list_corpus and returns documents", async () => {
@@ -103,9 +131,58 @@ describe("MCP server over the Worker fetch handler", () => {
 			method: "tools/call",
 			params: { name: "list_corpus", arguments: {} },
 		});
-		const payload = JSON.parse(json.result.content[0].text);
+		const payload = textPayload(json);
 		expect(payload.count).toBeGreaterThan(0);
+		expect(Array.isArray(payload.documents)).toBe(true);
+		if (!Array.isArray(payload.documents))
+			throw new Error("Expected documents");
 		expect(payload.documents[0]).toHaveProperty("id");
+	});
+
+	it("marks missing documents and repo profiles as tool errors", async () => {
+		for (const [name, args] of [
+			["get_document", { id: "__proto__" }],
+			["get_repo_profile", { repoId: "__proto__" }],
+		] as const) {
+			const { json } = await rpc({
+				jsonrpc: "2.0",
+				id: 31,
+				method: "tools/call",
+				params: { name, arguments: args },
+			});
+			expect(json.result).toHaveProperty("isError", true);
+		}
+	});
+
+	it("returns a protocol error for a missing resource", async () => {
+		const { json } = await rpc({
+			jsonrpc: "2.0",
+			id: 32,
+			method: "resources/read",
+			params: { uri: "portfolio://essays/__proto__" },
+		});
+		expect(json.error?.code).toBe(-32603);
+	});
+
+	it("logs unexpected Worker failures and returns a CORS JSON-RPC error", async () => {
+		const error = new Error("request URL unavailable");
+		const request = new Proxy(new Request(ENDPOINT), {
+			get(target, property, receiver) {
+				if (property === "url") throw error;
+				return Reflect.get(target, property, receiver);
+			},
+		});
+		const log = vi.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			const response = await handler.fetch(request);
+			const body = (await response.json()) as RpcResponse;
+			expect(response.status).toBe(500);
+			expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
+			expect(body.error?.code).toBe(-32603);
+			expect(log).toHaveBeenCalledWith("MCP Worker request failed:", error);
+		} finally {
+			log.mockRestore();
+		}
 	});
 
 	it("calls search and returns ranked hits with snippets", async () => {
@@ -115,7 +192,10 @@ describe("MCP server over the Worker fetch handler", () => {
 			method: "tools/call",
 			params: { name: "search", arguments: { query: "verification" } },
 		});
-		const payload = JSON.parse(json.result.content[0].text);
+		const payload = textPayload(json);
+		expect(Array.isArray(payload.results)).toBe(true);
+		if (!Array.isArray(payload.results))
+			throw new Error("Expected search results");
 		expect(payload.results.length).toBeGreaterThan(0);
 		expect(payload.results[0]).toHaveProperty("snippet");
 	});
@@ -126,7 +206,7 @@ describe("MCP server over the Worker fetch handler", () => {
 			id: 5,
 			method: "resources/list",
 		});
-		expect(Array.isArray(json.result.resources)).toBe(true);
+		expect(Array.isArray(resultOf(json).resources)).toBe(true);
 	});
 
 	it("calls get_operant_results and reports availability", async () => {
@@ -136,7 +216,7 @@ describe("MCP server over the Worker fetch handler", () => {
 			method: "tools/call",
 			params: { name: "get_operant_results", arguments: {} },
 		});
-		const payload = JSON.parse(json.result.content[0].text);
+		const payload = textPayload(json);
 		expect(payload).toHaveProperty("available");
 	});
 
@@ -147,17 +227,22 @@ describe("MCP server over the Worker fetch handler", () => {
 			method: "tools/call",
 			params: { name: "list_repo_profiles", arguments: {} },
 		});
-		const listPayload = JSON.parse(listed.json.result.content[0].text);
+		const listPayload = textPayload(listed.json);
 		expect(listPayload).toHaveProperty("available");
 
-		const repoId = listPayload.profiles?.[0]?.repo_id ?? "githubrepoauditor";
+		const profiles = listPayload.profiles;
+		const firstProfile = Array.isArray(profiles) ? profiles[0] : undefined;
+		const repoId =
+			isRecord(firstProfile) && typeof firstProfile.repo_id === "string"
+				? firstProfile.repo_id
+				: "githubrepoauditor";
 		const fetched = await rpc({
 			jsonrpc: "2.0",
 			id: 11,
 			method: "tools/call",
 			params: { name: "get_repo_profile", arguments: { repoId } },
 		});
-		const profilePayload = JSON.parse(fetched.json.result.content[0].text);
+		const profilePayload = textPayload(fetched.json);
 		expect(profilePayload.repo_id ?? profilePayload.error).toBeTruthy();
 	});
 
@@ -167,9 +252,7 @@ describe("MCP server over the Worker fetch handler", () => {
 			id: 7,
 			method: "prompts/list",
 		});
-		const names = (json.result.prompts as Array<{ name: string }>)
-			.map((p) => p.name)
-			.sort();
+		const names = (resultOf(json).prompts ?? []).map((p) => p.name).sort();
 		expect(names).toEqual(["introduce_saagar", "summarize_writing_on"]);
 	});
 
@@ -180,7 +263,9 @@ describe("MCP server over the Worker fetch handler", () => {
 			method: "prompts/get",
 			params: { name: "introduce_saagar", arguments: {} },
 		});
-		expect(json.result.messages[0].content.text).toContain("Saagar Patel");
+		expect(resultOf(json).messages?.[0]?.content.text).toContain(
+			"Saagar Patel",
+		);
 	});
 
 	it("gets the summarize_writing_on prompt with a topic argument", async () => {
@@ -193,7 +278,7 @@ describe("MCP server over the Worker fetch handler", () => {
 				arguments: { topic: "verification" },
 			},
 		});
-		expect(json.result.messages[0].content.text.toLowerCase()).toContain(
+		expect(resultOf(json).messages?.[0]?.content.text.toLowerCase()).toContain(
 			"verification",
 		);
 	});

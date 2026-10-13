@@ -64,7 +64,7 @@ src/
   index.ts            Cloudflare Worker transport (streamable HTTP)
   stdio.ts            Layer 2 stdio transport (the npx CLI)
 scripts/
-  build-corpus.mjs    bakes Layer 0 (+ OPERANT) into corpus.generated.ts
+	build-corpus.mjs    bakes Layer 0 and local OPERANT inputs into corpus.generated.ts
   probe-mcp.mjs        probes an MCP HTTP endpoint (saagar-mcp-kit driver + domain calls)
   audit-mcp.sh        connected MCPAudit scan of this server (dogfood)
 test/                 vitest: bm25, tools, full-protocol server tests
@@ -72,29 +72,24 @@ test/                 vitest: bm25, tools, full-protocol server tests
 
 ## Develop
 
-From the repository root, use Node 24 (matching CI). The local smoke harness also
-requires Bash, Python 3, curl, and standard Unix process utilities (including pkill).
-The committed public-safe
-corpus is sufficient for routine verification; no sibling checkout, local
-portfolio import, signing key, or Cloudflare credentials are needed.
+From the repository root, use the pinned Node and npm versions from
+`.node-version` and `package.json`. The checked-in public-safe corpus is enough
+for routine checks; no sibling checkout, local portfolio import, signing key,
+or Cloudflare credentials are needed.
 
 ```sh
 npm ci
-npm test -- test/bm25.test.ts  # focused injected-corpus retrieval fixtures
-npm run typecheck
-npm test                     # broader Vitest suite
-npm run build:cli             # build local stdio transport
-npm run smoke                # disposable local workerd/protocol check
-npm run parity               # server.json/package.json version parity
+make check
 ```
 
-No separate lint/format script is defined. See `package.json` and
-[CI](.github/workflows/verify.yml) for the authoritative commands. `npm run dev`
-starts the local Worker. There is no browser UI here: for MCP response changes,
-use synthetic corpus/protocol tests and, when useful, the local inspector below.
+`make check` runs lint, format validation, typecheck, tests, the stdio build and
+protocol test, smoke, parity, and a package-content check. See
+[CI](.github/workflows/ci.yml) for the same aggregate gate. `npm run dev` starts
+the local Worker.
 
 `npm run build:corpus` regenerates source from a sibling checkout or an explicit
-network URL; it is not required for ordinary fixture verification. `npm run
+network URL; URL-mode builds omit OPERANT because its build inputs are not
+published. Corpus generation is not required for ordinary fixture verification. `npm run
 probe:mcp` targets the live Worker by default, and the connected audit starts a
 local Worker and invokes the separately installed `mcp-audit` CLI. Keep those
 separate from local gates; deployment and signing remain operator-gated as
@@ -161,10 +156,18 @@ server's findings 62 → 14. The genuine tool surface scans clean (`high_risk_se
 
 ## Status
 
-- **Built + locally verified:** Layers 0–2. Shared core + 8 tools (including
-  `get_operant_results`) + Resources + 2 prompts. typecheck clean; test suite passes
-  (incl. full MCP protocol via the fetch handler). Live Worker probe and deploy remain operator-gated. Public discovery
-  advertises `mcp.saagarpatel.dev` with a valid Ed25519-signed manifest.
-- **Gated / next:** publish the stdio package (`npm publish`, by explicit operator approval only;
-  `package.json` already has no `private` field), glama.ai registry listing, and
-  continued signed-manifest readback checks after website manifest changes.
+### Stack
+
+Node.js 24.21.0, npm 12.2.0, TypeScript, Cloudflare Workers, and the MCP SDK.
+
+### Known risks
+
+URL-mode corpus builds omit OPERANT, whose inputs are only available to local
+corpus builds. Worker deployment and package publication are not part of local
+verification.
+
+### Next steps
+
+Keep the published MCP endpoint and signed discovery manifest in sync when an
+operator authorizes a deployment. Registry publication remains a separate,
+explicitly authorized release action.

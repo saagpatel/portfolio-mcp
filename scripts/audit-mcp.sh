@@ -1,55 +1,85 @@
 #!/usr/bin/env bash
-# Connected MCPAudit scan of THIS server against a local wrangler dev instance.
-# Scans only our server (--config-only), runs the deep checks, prints the grade.
-#
-#   bash scripts/audit-mcp.sh
-set -uo pipefail
-cd "$(dirname "$0")/.." || exit 1
-CFG="$(mktemp -t mcpcfg.XXXXXX)"
-REPORT="$(dirname "$0")/../.audit-report.json"
-LOG="$(mktemp -t wdev.XXXXXX)"
+# Connected MCPAudit scan of this server against a local wrangler instance.
+set -euo pipefail
+cd "$(dirname "$0")/.."
 
+CFG=""
+LOG=""
+WPID=""
+REPORT="$(dirname "$0")/../.audit-report.json"
+
+cleanup() {
+	if [[ -n "$WPID" ]] && kill -0 "$WPID" 2>/dev/null; then
+		kill "$WPID" 2>/dev/null || true
+		wait "$WPID" 2>/dev/null || true
+	fi
+	[[ -z "$CFG" ]] || rm -f "$CFG"
+	[[ -z "$LOG" ]] || rm -f "$LOG"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+rm -f "$REPORT"
+CFG="$(mktemp -t mcpcfg.XXXXXX)"
+LOG="$(mktemp -t wdev.XXXXXX)"
 printf '%s' '{ "mcpServers": { "saagarpatel-portfolio": { "type": "http", "url": "http://127.0.0.1:8787/mcp" } } }' >"$CFG"
 
 npx wrangler dev --port 8787 --ip 127.0.0.1 >"$LOG" 2>&1 &
 WPID=$!
 ready=0
-for i in $(seq 1 120); do
-	code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8787/" 2>/dev/null)
-	[ -z "$code" ] && code=000
-	if [ "$code" != "000" ]; then ready=1; break; fi
+code=000
+for _ in $(seq 1 120); do
+	code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8787/" 2>/dev/null || true)
+	[[ -n "$code" ]] || code=000
+	if [[ "$code" != 000 ]]; then ready=1; break; fi
 	if ! kill -0 "$WPID" 2>/dev/null; then echo "!! wrangler exited early"; break; fi
 	sleep 1
 done
 echo "wrangler dev ready=$ready (root HTTP $code)"
-
-if [ "$ready" = "1" ]; then
-	echo "=== mcp-audit connected scan ==="
-	mcp-audit scan --config "$CFG" --config-only \
-		--inject-check --ssrf-check --trifecta-check --shadow-check \
-		--json "$REPORT" --verbose 2>&1 || echo "(mcp-audit exit $?)"
-	echo
-	echo "=== JSON report structure ==="
-	python3 - "$REPORT" <<'PY'
-import json, sys
-try:
-    d = json.load(open(sys.argv[1]))
-except Exception as e:
-    print("could not read report:", e); sys.exit(0)
-print("top-level keys:", list(d) if isinstance(d, dict) else type(d).__name__)
-servers = d.get("servers", []) if isinstance(d, dict) else []
-for s in servers:
-    print(f"\nSERVER: {s.get('name')}")
-    for k in ("risk_score", "risk", "grade", "transport", "permissions"):
-        if k in s: print(f"  {k}: {s[k]}")
-    findings = s.get("findings", [])
-    print(f"  findings: {len(findings)}")
-    for f in findings:
-        print(f"    - [{f.get('severity','?')}] {f.get('rule_id', f.get('id',''))}: {f.get('title', f.get('message',''))}")
-PY
+if [[ "$ready" != 1 ]]; then
+	cat "$LOG"
+	exit 1
 fi
 
-kill "$WPID" 2>/dev/null
-pkill -f "wrangler dev" 2>/dev/null
-rm -f "$CFG" "$LOG"
-echo "report kept at: $REPORT"
+echo "=== mcp-audit connected scan ==="
+scanner_status=0
+if mcp-audit scan --config "$CFG" --config-only \
+	--inject-check --ssrf-check --trifecta-check --shadow-check \
+	--json "$REPORT" --verbose; then
+	scanner_status=0
+else
+	scanner_status=$?
+fi
+
+echo
+echo "=== JSON report structure ==="
+report_status=0
+if [[ -f "$REPORT" ]]; then
+python3 - "$REPORT" <<'PY' || report_status=$?
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as report_file:
+    data = json.load(report_file)
+print("top-level keys:", list(data) if isinstance(data, dict) else type(data).__name__)
+servers = data.get("servers", []) if isinstance(data, dict) else []
+for server in servers:
+    print(f"\nSERVER: {server.get('name')}")
+    for key in ("risk_score", "risk", "grade", "transport", "permissions"):
+        if key in server:
+            print(f"  {key}: {server[key]}")
+    findings = server.get("findings", [])
+    print(f"  findings: {len(findings)}")
+    for finding in findings:
+        print(
+            f"    - [{finding.get('severity', '?')}] "
+            f"{finding.get('rule_id', finding.get('id', ''))}: "
+            f"{finding.get('title', finding.get('message', ''))}"
+        )
+PY
+else
+	echo "scanner did not write a report"
+	report_status=1
+fi
+
+if [[ "$scanner_status" != 0 ]]; then exit "$scanner_status"; fi
+if [[ "$report_status" != 0 ]]; then exit "$report_status"; fi

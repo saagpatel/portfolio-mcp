@@ -1,6 +1,6 @@
-// The five MCP tools as PURE functions behind a factory: no SDK, no transport,
+// The eight MCP tools as pure functions behind a factory: no SDK, no transport,
 // no I/O. createTools(corpus) builds the BM25 index once and returns the tool
-// set; src/index.ts wires these into MCP, tests call them with a fixture corpus.
+// set; server.ts wires these into MCP, tests call them with a fixture corpus.
 
 import { Bm25, type SearchDoc, snippet } from "./bm25";
 import type {
@@ -40,7 +40,8 @@ export function createTools(corpus: Corpus) {
 	): { query: string; count: number; results: SearchResult[] } {
 		const limit = Math.min(Math.max(opts.limit ?? 10, 1), 25);
 		const results: SearchResult[] = [];
-		for (const hit of index.search(query, 50)) {
+		for (const hit of index.search(query, searchDocs.length)) {
+			if (!Object.hasOwn(corpus.documents, hit.id)) continue;
 			const d = corpus.documents[hit.id];
 			if (!d) continue;
 			if (opts.section && d.type !== opts.section) continue;
@@ -61,11 +62,11 @@ export function createTools(corpus: Corpus) {
 
 	/** get_document: the full Markdown of one document by id. */
 	function getDocument(id: string): FullDoc | { error: string } {
-		return (
-			corpus.documents[id] ?? {
-				error: `No document with id "${id}". Call list_corpus to see available ids.`,
-			}
-		);
+		return Object.hasOwn(corpus.documents, id)
+			? corpus.documents[id]
+			: {
+					error: `No document with id "${id}". Call list_corpus to see available ids.`,
+				};
 	}
 
 	/** list_corpus: the table of contents, optionally filtered by type. */
@@ -90,7 +91,9 @@ export function createTools(corpus: Corpus) {
 		uses: string;
 	} {
 		const body = (id: string): string =>
-			corpus.documents[id]?.body_markdown ?? "";
+			Object.hasOwn(corpus.documents, id)
+				? (corpus.documents[id]?.body_markdown ?? "")
+				: "";
 		return {
 			name: corpus.index.title,
 			summary: corpus.index.summary,
@@ -124,10 +127,9 @@ export function createTools(corpus: Corpus) {
 	}
 
 	/** list_repo_profiles: the public-safe repo answering profile index. */
-	function listRepoProfiles(opts: {
-		attentionState?: string;
-		limit?: number;
-	} = {}):
+	function listRepoProfiles(
+		opts: { attentionState?: string; limit?: number } = {},
+	):
 		| {
 				available: true;
 				generated_at: string;
@@ -168,11 +170,11 @@ export function createTools(corpus: Corpus) {
 					"No public repo-profile dataset is baked into this server build.",
 			};
 		}
-		return (
-			repoProfiles.profiles[repoId] ?? {
-				error: `No repo profile with repo_id "${repoId}". Call list_repo_profiles to see available ids.`,
-			}
-		);
+		return Object.hasOwn(repoProfiles.profiles, repoId)
+			? repoProfiles.profiles[repoId]
+			: {
+					error: `No repo profile with repo_id "${repoId}". Call list_repo_profiles to see available ids.`,
+				};
 	}
 
 	/** get_operant_results: the public, sanitized OPERANT calibration results
@@ -210,5 +212,3 @@ export function createTools(corpus: Corpus) {
 		getOperantResults,
 	};
 }
-
-export type Tools = ReturnType<typeof createTools>;

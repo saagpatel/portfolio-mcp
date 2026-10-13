@@ -1,0 +1,25 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+	"formatter": {
+		"indentStyle": "tab",
+		"lineWidth": 80
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"preset": "recommended"
+		}
+	},
+	"files": {
+		"includes": [
+			"src/**/*.ts",
+			"!src/corpus.generated.ts",
+			"test/**/*.ts",
+			"test/**/*.mjs",
+			"scripts/**/*.mjs",
+			"package.json",
+			"tsconfig.json",
+			"biome.json"
+		]
+	}
+}
