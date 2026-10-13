@@ -33,6 +33,7 @@ const INSTRUCTIONS =
 
 const jsonResult = (data: unknown) => ({
 	content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
+	isError: typeof data === "object" && data !== null && "error" in data,
 });
 
 const first = (v: string | string[]): string =>
@@ -50,7 +51,7 @@ export function buildServer(): McpServer {
 		{
 			title: "Search the writing corpus",
 			description:
-				"Full-text (BM25) search across all essays, book chapters, and field notes. " +
+				"Full-text (BM25) search across essays, book chapters, field notes, and pages. " +
 				"Returns ranked matches with a snippet, id, and canonical URL. Pass an id to get_document to read the full text.",
 			inputSchema: {
 				query: z.string().min(1).describe("Search terms"),
@@ -222,17 +223,19 @@ export function buildServer(): McpServer {
 				description: `Saagar's ${type} content as Markdown`,
 			},
 			async (uri, { slug }) => {
-				const doc = corpus.documents[`${idPrefix}/${first(slug)}`];
+				const id = `${idPrefix}/${first(slug)}`;
+				const doc = Object.hasOwn(corpus.documents, id)
+					? corpus.documents[id]
+					: undefined;
+				if (!doc) throw new Error(`Resource not found: ${uri.href}`);
 				return {
-					contents: doc
-						? [
-								{
-									uri: uri.href,
-									text: doc.body_markdown,
-									mimeType: "text/markdown",
-								},
-							]
-						: [],
+					contents: [
+						{
+							uri: uri.href,
+							text: doc.body_markdown,
+							mimeType: "text/markdown",
+						},
+					],
 				};
 			},
 		);
