@@ -1,57 +1,53 @@
-<!-- portfolio-context:start -->
-# Portfolio Context
+# Purpose
 
-## What This Project Is
+portfolio-mcp provides read-only MCP access to the public portfolio corpus over
+HTTP and stdio.
 
-portfolio-mcp: The agent-native layer of [saagarpatel.dev](https://saagarpatel.dev): a Model.
+# Layout
 
-## Current State
+- `src/server.ts`: shared tools, resources, and prompts.
+- `src/index.ts` and `src/stdio.ts`: HTTP Worker and stdio transports.
+- `src/corpus.generated.ts`: checked-in, generated public-safe corpus.
+- `scripts/build-corpus.mjs`: builds the corpus from public index artifacts.
+- `test/`: unit, protocol, corpus-builder, and stdio tests.
 
-- **Built + locally verified:** Layers 0–2. Shared core + 8 tools (including
-  `get_operant_results`) + Resources + 2 prompts. typecheck clean; test suite passes
-  (incl. full MCP protocol via the fetch handler). Live Worker probe and deploy remain operator-gated. Public discovery
-  advertises `mcp.saagarpatel.dev` with a valid Ed25519-signed manifest.
-- **Gated / next:** publish the stdio package (`npm publish`, by explicit operator approval only;
-  `package.json` already has no `private` field), glama.ai registry listing, and
-  continued signed-manifest readback checks after website manifest changes.
+# Setup
 
-## Stack
-
-- Primary stack: Node.js, TypeScript
-- JavaScript package manager: npm-compatible workflow
-
-## How To Run
-
-- Install dependencies with `npm install`.
-- Start local development with `npm run dev`.
-- Review the repo README for any required verification commands before shipping.
-
-## Known Risks
-
-- This repo only has minimum-viable recovery context today; deeper handoff details may still live in the README and supporting docs.
-
-## Next Recommended Move
-
-Use this context plus the README and supporting docs to resume the next active task, then promote the repo beyond minimum-viable by capturing a dedicated handoff, roadmap, or discovery artifact.
-
-## Cursor Cloud specific instructions
-
-Cursor Cloud uses `.cursor/environment.json` to install the committed npm lockfile
-on Ubuntu. The checked-in public-safe corpus is sufficient for normal code,
-contract, stdio, and Worker test work; do not import local portfolio data or
-private sibling-repository content.
-
-Verify ordinary changes with:
+Use the versions pinned in `.node-version` and `package.json`.
 
 ```sh
-npm run typecheck
-npm test
-npm run smoke
-npm run parity
+npm ci
 ```
 
-Publishing, signing, and Cloudflare deployment require separate authorization and
-credentials. Never copy signing keys, Wrangler credentials, or local `.env` files
-into a cloud environment.
+# Checks
 
-<!-- portfolio-context:end -->
+Run the complete local gate:
+
+```sh
+make check
+```
+
+The check includes lint, formatting, typecheck, tests, both transports, smoke,
+parity, and package contents.
+
+# Boundaries
+
+- Use only the checked-in public-safe corpus for normal work. Do not import
+  private portfolio data or sibling-repository content.
+- Do not publish packages, deploy Workers, or sign manifests as part of code
+  changes.
+- Never copy signing keys, Wrangler credentials, or local environment files.
+- Keep runtime access read-only and stateless.
+
+# Delivery
+
+Keep changes focused. Run the relevant checks and report their real results.
+Publishing, deployment, signing, and registry release work require separate
+operator authorization.
+
+Pinned dependency notes:
+- `vite` stays at 6.4.3, the currently tested Vite 6 release used with Vitest
+  5.0.3. Major upgrades are outside the current scope.
+- The `undici` override holds Wrangler's Miniflare dependency to the v7 API
+  line while Miniflare declares 7.29.1; the lockfile resolves the compatible
+  v7 release without moving to a new major.
