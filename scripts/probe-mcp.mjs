@@ -3,7 +3,11 @@
 // tools/list, read-only annotations) come from saagar-mcp-kit's driver; this
 // script keeps only what is portfolio-specific — the expected tool set, the
 // server name, and the two domain calls (search + get_operant_results).
-import { parseToolPayload, probeHttpServer, rpc } from "saagar-mcp-kit/http-probe";
+import {
+	parseToolPayload,
+	probeHttpServer,
+	rpc,
+} from "saagar-mcp-kit/http-probe";
 
 const DEFAULT_ENDPOINT = "https://portfolio-mcp.saagar210.workers.dev/mcp";
 const SERVER_NAME = "saagarpatel-portfolio";
@@ -20,7 +24,8 @@ const EXPECTED_TOOLS = [
 
 function parseArgs(argv) {
 	const out = {
-		endpoint: globalThis.process?.env?.PORTFOLIO_MCP_ENDPOINT || DEFAULT_ENDPOINT,
+		endpoint:
+			globalThis.process?.env?.PORTFOLIO_MCP_ENDPOINT || DEFAULT_ENDPOINT,
 		query: "verification",
 		limit: 2,
 	};
@@ -28,7 +33,10 @@ function parseArgs(argv) {
 		const arg = argv[i];
 		const [key, inlineValue] = arg.split("=", 2);
 		const value = inlineValue ?? argv[i + 1];
-		if (arg.startsWith("--") && (value === undefined || value.startsWith("--"))) {
+		if (
+			arg.startsWith("--") &&
+			(value === undefined || value.startsWith("--"))
+		) {
 			throw new Error(`missing value for ${key}`);
 		}
 		if (inlineValue === undefined && arg.startsWith("--")) i += 1;
@@ -58,7 +66,10 @@ export async function probeEndpoint(endpoint = DEFAULT_ENDPOINT, options = {}) {
 		arguments: { query, limit },
 	});
 	const searchPayload = parseToolPayload(search.json.result, "search");
-	if (!Array.isArray(searchPayload.results) || searchPayload.results.length === 0) {
+	if (
+		!Array.isArray(searchPayload.results) ||
+		searchPayload.results.length === 0
+	) {
 		throw new Error("search returned no results");
 	}
 
@@ -66,7 +77,10 @@ export async function probeEndpoint(endpoint = DEFAULT_ENDPOINT, options = {}) {
 		name: "get_operant_results",
 		arguments: {},
 	});
-	const operantPayload = parseToolPayload(operant.json.result, "get_operant_results");
+	const operantPayload = parseToolPayload(
+		operant.json.result,
+		"get_operant_results",
+	);
 	if (typeof operantPayload.available !== "boolean") {
 		throw new Error("get_operant_results did not return an availability flag");
 	}
@@ -79,7 +93,9 @@ export async function probeEndpoint(endpoint = DEFAULT_ENDPOINT, options = {}) {
 			allowOrigin: search.allowOrigin,
 			query,
 			count: searchPayload.count,
-			firstIds: searchPayload.results.slice(0, limit).map((result) => result.id),
+			firstIds: searchPayload.results
+				.slice(0, limit)
+				.map((result) => result.id),
 		},
 		operantCall: {
 			status: operant.status,
