@@ -11,5 +11,5 @@ check:
 	npm test
 	npm test -- test/stdio.test.ts
 	npm run parity
-	npm pack --dry-run --json --cache .npm-cache | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const files=JSON.parse(s)[0].files.map(f=>f.path);if(!files.includes("dist/stdio.js")){console.error("npm pack is missing dist/stdio.js");process.exit(1)}console.log("dist/stdio.js listed")})'
+	npm pack --dry-run --json --cache .npm-cache | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const packs=Object.values(JSON.parse(s));if(packs.length!==1||!packs[0].files.some(f=>f.path==="dist/stdio.js")){console.error("npm pack is missing dist/stdio.js");process.exit(1)}console.log("dist/stdio.js listed")})'
 	npm run smoke
