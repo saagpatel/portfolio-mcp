@@ -505,3 +505,21 @@ input[type="search"] {
 		transition: none !important;
 	}
 }
+
+/* ---- inline request status ---- */
+
+.note-inline {
+	font-size: 12px;
+	color: var(--text-2);
+	align-self: center;
+}
+
+/* In a timeline row the note gets its own line under the project text. */
+.event .note-inline {
+	grid-column: 3 / -1;
+	padding-top: 2px;
+}
+
+.note-inline[data-tone="error"] {
+	color: var(--accent);
+}

@@ -26,6 +26,9 @@ import {
 } from "./render";
 
 const PROTOCOL_VERSION = "2026-01-26";
+// A host that never answers a request should not leave a button silently dead.
+const REQUEST_TIMEOUT_MS = 10_000;
+const NOTE_MS = 6_000;
 const APP_INFO = { name: "portfolio-explorer", version: "0.1.0" };
 
 type JsonRpcMessage = {
@@ -70,7 +73,20 @@ export function startApp(): () => void {
 	function request(method: string, params: unknown): Promise<unknown> {
 		const id = nextId++;
 		return new Promise((resolve, reject) => {
-			pending.set(id, { resolve, reject });
+			const timer = setTimeout(() => {
+				pending.delete(id);
+				reject(new Error("no response from the host"));
+			}, REQUEST_TIMEOUT_MS);
+			pending.set(id, {
+				resolve: (value) => {
+					clearTimeout(timer);
+					resolve(value);
+				},
+				reject: (error) => {
+					clearTimeout(timer);
+					reject(error);
+				},
+			});
 			post({ id, method, params });
 		});
 	}
@@ -201,17 +217,46 @@ export function startApp(): () => void {
 
 	// ---- interaction ----
 
-	function openLink(url: string): void {
-		if (capabilities.openLinks) {
-			request("ui/open-link", { url }).catch((error: unknown) =>
-				console.error("ui/open-link failed", error),
-			);
-		} else {
-			window.open(url, "_blank", "noopener,noreferrer");
-		}
+	const errorText = (error: unknown): string =>
+		error instanceof Error ? error.message : String(error);
+
+	const hostDeclined = (result: unknown): boolean =>
+		isRecord(result) && result.isError === true;
+
+	/** Show the outcome of a host request beside the control that started it.
+	 * The frame can be taller than the visible chat, so a page-level toast could
+	 * land off-screen; next to the button is where the user is looking. */
+	function note(anchor: HTMLElement, text: string, tone: "ok" | "error"): void {
+		anchor.parentElement?.querySelector(".note-inline")?.remove();
+		const el = document.createElement("span");
+		el.className = "note-inline";
+		el.dataset.tone = tone;
+		el.setAttribute("role", "status");
+		el.textContent = text;
+		anchor.insertAdjacentElement("afterend", el);
+		setTimeout(() => el.remove(), NOTE_MS);
 	}
 
-	function ask(name: string): void {
+	function openLink(url: string, anchor: HTMLElement): void {
+		if (!capabilities.openLinks) {
+			window.open(url, "_blank", "noopener,noreferrer");
+			return;
+		}
+		request("ui/open-link", { url })
+			.then((result) => {
+				if (hostDeclined(result)) {
+					note(anchor, "The host didn't open the link.", "error");
+				}
+			})
+			.catch((error: unknown) => {
+				console.error("ui/open-link failed", error);
+				note(anchor, `Couldn't open the link: ${errorText(error)}`, "error");
+			});
+	}
+
+	/** Ask the host to put a question in the chat. Hosts decide how: Claude
+	 * stages it in the chat box (with a caution banner) for the user to send. */
+	function ask(name: string, anchor: HTMLElement): void {
 		request("ui/message", {
 			role: "user",
 			content: [
@@ -220,7 +265,18 @@ export function startApp(): () => void {
 					text: `Tell me about the ${name} project from Saagar's portfolio.`,
 				},
 			],
-		}).catch((error: unknown) => console.error("ui/message failed", error));
+		})
+			.then((result) => {
+				if (hostDeclined(result)) {
+					note(anchor, "The host declined to post the question.", "error");
+				} else {
+					note(anchor, "Sent — check the chat box.", "ok");
+				}
+			})
+			.catch((error: unknown) => {
+				console.error("ui/message failed", error);
+				note(anchor, `Couldn't ask in the chat: ${errorText(error)}`, "error");
+			});
 	}
 
 	const onClick = (event: MouseEvent): void => {
@@ -228,12 +284,12 @@ export function startApp(): () => void {
 		const link = target?.closest<HTMLElement>("[data-open-link]");
 		if (link?.dataset.openLink) {
 			event.preventDefault();
-			openLink(link.dataset.openLink);
+			openLink(link.dataset.openLink, link);
 			return;
 		}
 		const askButton = target?.closest<HTMLElement>("[data-ask]");
 		if (askButton?.dataset.ask) {
-			ask(askButton.dataset.ask);
+			ask(askButton.dataset.ask, askButton);
 			return;
 		}
 		const chip = target?.closest<HTMLElement>("[data-lifecycle]");
@@ -278,7 +334,7 @@ export function startApp(): () => void {
 			const waiter = pending.get(id);
 			if (!waiter) return;
 			pending.delete(id);
-			if (error) waiter.reject(new Error(error.message));
+			if (error) waiter.reject(new Error(`${error.message} (${error.code})`));
 			else waiter.resolve(result);
 			return;
 		}
