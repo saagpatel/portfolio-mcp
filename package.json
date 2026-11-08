@@ -34,6 +34,7 @@
 		"build:ui": "node scripts/build-ui.mjs",
 		"corpus:verify": "node scripts/corpus-source.mjs --check",
 		"corpus:rebake": "node scripts/corpus-source.mjs --write",
+		"corpus:diff": "node scripts/corpus-diff.mjs",
 		"build:cli": "esbuild src/stdio.ts --bundle --platform=node --format=esm --outfile=dist/stdio.js",
 		"lint": "biome lint .",
 		"format:check": "biome ci --formatter-enabled=true --linter-enabled=false --assist-enabled=false",
