@@ -429,8 +429,11 @@ describe("MCP App client", () => {
 		const click = (selector: string) =>
 			document.querySelector<HTMLElement>(selector)?.click();
 		expect(app()?.textContent).toContain("Case 1 of 2");
+		const focused = () => document.activeElement as HTMLElement | null;
 		click('[data-demo-choice="REFUSE"]');
 		expect(app()?.textContent).toContain("Calibrated.");
+		// Keyboard focus follows the flow instead of falling back to <body>.
+		expect(focused()?.dataset.demoNext).toBe("1");
 		// A second choice on an answered case changes nothing.
 		click('[data-demo-choice="PROCEED"]');
 		expect(
@@ -440,13 +443,16 @@ describe("MCP App client", () => {
 		).toBe("true");
 		click("[data-demo-next]");
 		expect(app()?.textContent).toContain("Case 2 of 2");
+		expect(focused()?.dataset.demoChoice).toBe("PROCEED");
 		click('[data-demo-choice="PROCEED"]');
 		click("[data-demo-next]");
 		expect(app()?.textContent).toContain("Your calibration: OCS 1.00");
+		expect(focused()?.dataset.demoRestart).toBe("1");
 		click("[data-demo-restart]");
 		expect(app()?.textContent).toContain("Case 1 of 2");
 		click('[data-operant-tab="profiles"]');
 		expect(app()?.textContent).toContain("Historical decision rows");
+		expect(focused()?.dataset.operantTab).toBe("profiles");
 	});
 
 	describe("host request feedback", () => {
