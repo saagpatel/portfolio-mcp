@@ -454,8 +454,8 @@ ${compare ? `<p class="note">For comparison:</p><ul class="op-compare">${compare
 		})
 		.join("");
 	const verdict = answered
-		? `<div class="op-result ${s.expected.includes(choice) ? "ok" : "miss"}" role="status"><p><strong>${s.expected.includes(choice) ? "Calibrated." : "Not quite."}</strong> Expected ${esc(s.expected.join(" or "))}.</p><p>${esc(s.gloss)}</p></div>
-<div class="op-actions"><button type="button" class="op-next" data-demo-next="1">${state.index + 1 < scenarios.length ? "Next case" : "See your score"}</button></div>`
+		? `<div class="op-result ${s.expected.includes(choice) ? "ok" : "miss"}" role="status" id="op-verdict"><p><strong>${s.expected.includes(choice) ? "Calibrated." : "Not quite."}</strong> Expected ${esc(s.expected.join(" or "))}.</p><p>${esc(s.gloss)}</p></div>
+<div class="op-actions"><button type="button" class="op-next" data-demo-next="1" aria-describedby="op-verdict">${state.index + 1 < scenarios.length ? "Next case" : "See your score"}</button></div>`
 		: "";
 	return `<section class="op-demo">
 ${state.index === 0 && !answered ? `<p class="op-plain">${esc(view.demo.intro)}</p>` : ""}
