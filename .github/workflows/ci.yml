@@ -59,10 +59,12 @@ jobs:
           fi
       # The corpus diff is one 1.6 MB line, so say in the job summary what the
       # re-bake changed: documents, projects, repo profiles and OPERANT figures
-      # added, removed or changed. Reporting only; it never fails the job over
-      # content, and it gets no token.
+      # added, removed or changed. Reporting only: continue-on-error keeps a
+      # summary failure (say, a generator change to the file's wrapper) from
+      # failing the merge gate, and it gets no token.
       - name: Summarize what the re-bake changed
         if: ${{ github.event_name == 'pull_request' && !cancelled() }}
+        continue-on-error: true
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
