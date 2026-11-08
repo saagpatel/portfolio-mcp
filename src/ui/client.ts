@@ -107,14 +107,16 @@ function applyContext(ctx: unknown): void {
 // ---- size reporting ----
 
 let lastHeight = 0;
+// Measure <body>, not <html>: the html box never shrinks below the iframe the
+// host already sized, so a shorter filtered gallery would never be reported.
 function reportSize(): void {
-	const height = Math.ceil(document.documentElement.scrollHeight);
+	const height = Math.ceil(document.body.getBoundingClientRect().height);
 	if (height === lastHeight) return;
 	lastHeight = height;
 	notify("ui/notifications/size-changed", { height });
 }
 new ResizeObserver(() => requestAnimationFrame(reportSize)).observe(
-	document.documentElement,
+	document.body,
 );
 
 // ---- rendering ----

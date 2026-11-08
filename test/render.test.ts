@@ -182,7 +182,7 @@ describe("timeline rendering", () => {
 		expect(html).toContain("August 2026");
 		expect(html).toContain("1 project<");
 		expect(html).toContain(">Aug 21<");
-		expect(html).toContain("active · active · Python, Rust");
+		expect(html).toContain("active · audit: active · Python, Rust");
 		expect(html).toContain("Undated: ghost");
 	});
 

@@ -163,7 +163,7 @@ function card(c: GalleryCard, opts: RenderOptions): string {
 ${c.category ? `<p class="cat">${esc(c.category)}</p>` : ""}
 ${c.purpose ? `<p class="purpose">${esc(c.purpose)}</p>` : ""}
 ${stack}
-<div class="meta"><span class="when">Active <time datetime="${esc(c.last_active ?? "")}">${formatDate(c.last_active)}</time></span>${c.status ? `<span class="status">${esc(c.status)}</span>` : ""}${flag(c.tests, "tests")}${flag(c.ci, "CI")}</div>
+<div class="meta"><span class="when">Active <time datetime="${esc(c.last_active ?? "")}">${formatDate(c.last_active)}</time></span>${c.status ? `<span class="status" title="Activity signal from the portfolio audit">audit: ${esc(c.status)}</span>` : ""}${flag(c.tests, "tests")}${flag(c.ci, "CI")}</div>
 ${actions ? `<div class="actions">${actions}</div>` : ""}
 </li>`;
 }
@@ -195,7 +195,7 @@ export function archiveBar(a: ArchiveSummary): string {
 	const total = Math.max(a.total, known, 1);
 	const description = segments.map((s) => `${s.label} ${s.n}`).join(", ");
 	return `<figure class="lc-bar">
-<figcaption>Lifecycle across all ${esc(a.total)} archived repositories</figcaption>
+<figcaption>Lifecycle across all ${esc(a.total)} repositories in the portfolio</figcaption>
 <div class="bar" role="img" aria-label="${esc(description)}">${segments
 		.map(
 			(s) =>
@@ -224,7 +224,7 @@ export function timelineBody(
 						: esc(e.name);
 					const meta = [
 						lifecycleLabel(e.lifecycle),
-						e.status,
+						e.status ? `audit: ${e.status}` : null,
 						e.stack.join(", "),
 					]
 						.filter(Boolean)
