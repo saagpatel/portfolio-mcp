@@ -53,6 +53,10 @@ function run(command, commandArgs, options = {}, hint = "") {
 		encoding: "utf8",
 		...options,
 	});
+	if (result.error) {
+		// The spawn itself failed (for example, git is not installed).
+		fail(`${command} could not run: ${result.error.message}${hint}`);
+	}
 	if (result.status !== 0) {
 		fail(
 			`${command} ${commandArgs.join(" ")} failed:\n${result.stderr || result.stdout}${hint}`,

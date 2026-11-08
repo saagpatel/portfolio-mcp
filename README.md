@@ -139,12 +139,21 @@ generated file is a single 1.6 MB line, beyond what a two-key review can read, s
 it is excluded from two-key review and lands on the rebuild-and-hash check instead:
 
 1. Generator, check, and other source changes go through the normal two-key
-   review first.
-2. The re-bake follows in its own PR: the pin bump in `corpus.source.json` plus
-   the regenerated corpus from `npm run corpus:rebake`, and nothing else (CI
-   fails a PR that changes the corpus alongside any other file). It merges only
-   on a green `corpus-rebuild` check, pinned to the checked head with
-   `gh pr merge --match-head-commit <sha>`.
+   review. They must be **output-preserving**: `corpus-rebuild` runs the PR's
+   generator against the current pin and fails if the committed corpus would
+   change, so refactors and fixes land normally.
+2. A re-bake lands in its own PR: the pin bump in `corpus.source.json` plus the
+   regenerated corpus from `npm run corpus:rebake`, and nothing else (CI fails a
+   PR that changes the corpus alongside any other file). Before merging, confirm
+   the changed files with `gh pr diff <n> --name-only` (a PR could also edit the
+   workflow that enforces this), then merge only on a green `corpus-rebuild`
+   check, pinned to the checked head with `gh pr merge --match-head-commit <sha>`.
+3. A generator change that alters the output cannot satisfy either rule: its
+   generator-only PR fails the rebuild, and its re-bake cannot carry generator
+   code. Saagar merges that PR himself, with the regenerated corpus included: its
+   scope-guard step fails as expected, and its rebuild step must pass, which
+   still proves the corpus matches the new generator. Output-changing generator
+   edits are rare (schema changes).
 
 Dependabot PRs skip `corpus-rebuild`: they receive no Actions secrets, and their
 dependency bumps cannot change the corpus.
