@@ -177,7 +177,9 @@ it is excluded from two-key review and lands on the rebuild-and-hash check inste
    the changed files with `gh pr diff <n> --name-only` (a PR could also edit the
    workflow that enforces this), then merge only on a green `corpus-rebuild`
    check, pinned to the checked head with `gh pr merge --match-head-commit <sha>`.
-3. A generator change that alters the output cannot satisfy either rule: its
+3. Settled 2026-11-08 (Saagar left it to the recommendation): a generator
+   change that alters the output is owner-merged, not routed through a
+   two-key runner path exclusion. Such a change cannot satisfy either rule: its
    generator-only PR fails the rebuild, and its re-bake cannot carry generator
    code. Saagar merges that PR himself, with the regenerated corpus included: its
    scope-guard step fails as expected, and its rebuild step must pass, which
