@@ -43,6 +43,7 @@ SSRF / exfil surface).
 | `show_project_gallery` | Curated projects as gallery cards (MCP App); optional `status`, `lifecycle` |
 | `show_project_timeline` | Curated projects by last-active month, with archive lifecycle mix (MCP App) |
 | `show_operant_results` | OPERANT calibration-profile cards plus a playable demo scored with OCS (MCP App); optional `section` |
+| `play_demo` | The site's playable demos rebuilt from their corpus pages (MCP App): `interleaving` or `failure-museum` |
 
 ## MCP Apps
 
@@ -63,6 +64,16 @@ are historical calculations, not a leaderboard). The demo is the dataset's own
 six-case "operator's agent" exercise: the reader picks an action per case and is
 scored live with OCS = TPR - FPR, where withholding direct execution is the
 positive signal.
+
+`play_demo` rebuilds only the site demos whose mechanics are fully described in
+their own public corpus pages (`src/demos.ts`). `interleaving` is the Interleaving
+Explorer: writer A writes blind, writer B does a compare-and-swap, and the six
+possible schedules run in warn or enforce mode with their conflict receipts.
+Its numbers come from the page itself (the real sweep finding) or from exact
+fair-coin arithmetic at this granularity, never from an invented seed.
+`failure-museum` turns the Agent Failure Museum exhibits into a
+match-the-control game. Demos whose data or logic is not in the corpus (Next
+Word, the Verdict Machine) are left out rather than approximated.
 
 The app client (`src/ui/client.ts`) speaks the `ui/*` postMessage protocol
 directly rather than through the ext-apps SDK. `npm run build:ui` bundles it with

@@ -11,6 +11,7 @@ import {
 } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { corpus } from "./corpus";
+import { demoView } from "./demos";
 import { createTools } from "./tools";
 import type { DocType } from "./types";
 import { APP_MIME_TYPE, type AppView, appHtml } from "./ui/html";
@@ -33,6 +34,7 @@ const INSTRUCTIONS =
 	"search to find by topic, and get_document to read full text. " +
 	"show_project_gallery and show_project_timeline return the projects, and " +
 	"show_operant_results the OPERANT calibration profiles with a playable demo, " +
+	"and play_demo the site's interactive demos (interleaving, failure-museum), " +
 	"as interactive views in hosts that support MCP Apps and as JSON elsewhere.";
 
 // MCP Apps (UI extension): each app is a ui:// HTML resource; a tool points at
@@ -41,6 +43,7 @@ const APP_URIS: Record<AppView, string> = {
 	gallery: "ui://portfolio/project-gallery.html",
 	timeline: "ui://portfolio/project-timeline.html",
 	operant: "ui://portfolio/operant-results.html",
+	demos: "ui://portfolio/demos.html",
 };
 
 // No csp domains: the apps make no network requests and load nothing remote.
@@ -288,6 +291,29 @@ export function buildServer(): McpServer {
 		async ({ section }) => appResult(tools.operantView(section)),
 	);
 
+	server.registerTool(
+		"play_demo",
+		{
+			title: "Play a portfolio demo",
+			description:
+				"Play one of the site's interactive demos, rebuilt from the public corpus pages that fully " +
+				'describe them. "interleaving": the Interleaving Explorer, two writers on one database row, ' +
+				"six schedules, warn vs enforce mode, and the lost update with its receipts. " +
+				'"failure-museum": match each Agent Failure Museum exhibit (synthetic failures) to the ' +
+				"control that catches it. Hosts that support MCP Apps render it as an interactive view; " +
+				"others get the same data as JSON.",
+			inputSchema: {
+				demo: z
+					.enum(["interleaving", "failure-museum"])
+					.optional()
+					.describe('Which demo: "interleaving" (default) or "failure-museum"'),
+			},
+			annotations: { readOnlyHint: true, openWorldHint: false },
+			_meta: appToolMeta("demos"),
+		},
+		async ({ demo }) => appResult(demoView(corpus, demo ?? "interleaving")),
+	);
+
 	// ---- app resources: the HTML the show_* tools render in ----
 	const APP_RESOURCES: Record<
 		AppView,
@@ -308,8 +334,13 @@ export function buildServer(): McpServer {
 			title: "OPERANT results app",
 			tool: "show_operant_results",
 		},
+		demos: {
+			name: "demos-app",
+			title: "Portfolio demos app",
+			tool: "play_demo",
+		},
 	};
-	for (const view of ["gallery", "timeline", "operant"] as const) {
+	for (const view of ["gallery", "timeline", "operant", "demos"] as const) {
 		const app = APP_RESOURCES[view];
 		server.registerResource(
 			app.name,

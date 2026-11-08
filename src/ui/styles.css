@@ -874,3 +874,164 @@ input[type="search"] {
 .op-next:hover {
 	opacity: 0.85;
 }
+
+/* ---- playable demos ---- */
+
+:root {
+	--violet: #6d28d9;
+}
+
+:root[data-theme="dark"] {
+	--violet: #a78bfa;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--violet: #a78bfa;
+	}
+}
+
+.il-controls {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 16px;
+	margin: 16px 0;
+}
+
+.il-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+	gap: 12px;
+}
+
+.il-writer h3,
+.il-row h3,
+.op-case h3 {
+	margin: 0;
+	font-size: 15px;
+	font-weight: 700;
+}
+
+.il-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+}
+
+.op-next:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+.il-secondary {
+	color: var(--text);
+	background: var(--bg-2);
+	border: 1px solid var(--line);
+}
+
+.il-outcome {
+	margin: 12px 0 0;
+	padding: 10px 14px;
+	border-radius: var(--radius);
+	border: 1px solid var(--line);
+	background: var(--bg-2);
+}
+
+.il-outcome.il-lost-update {
+	border-color: var(--accent);
+}
+
+.il-outcome.il-rejected {
+	border-color: var(--violet);
+}
+
+.il-outcome.il-clean {
+	border-color: var(--lc-active);
+}
+
+.il-log {
+	margin: 12px 0 0;
+	padding-left: 0;
+	list-style: none;
+	color: var(--text-2);
+	font-size: 13px;
+}
+
+.il-step-n {
+	display: inline-block;
+	min-width: 20px;
+	color: var(--text-3);
+	font-variant-numeric: tabular-nums;
+}
+
+.il-receipts {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.il-receipt {
+	padding: 8px 12px;
+	border-left: 3px solid var(--violet);
+	background: var(--bg-2);
+	border-radius: 0 8px 8px 0;
+	font-size: 13px;
+}
+
+.il-receipt-kind {
+	font-family: var(--font-mono, ui-monospace, monospace);
+	font-size: 11px;
+	color: var(--violet);
+	margin-right: 6px;
+}
+
+.il-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 13px;
+}
+
+.il-table th,
+.il-table td {
+	text-align: left;
+	padding: 6px 8px;
+	border-bottom: 1px solid var(--line);
+}
+
+.il-table thead th {
+	color: var(--text-3);
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+}
+
+.il-table tr.is-current th,
+.il-table tr.is-current td {
+	background: var(--bg-2);
+}
+
+.il-table td.il-lost-update {
+	color: var(--accent);
+	font-weight: 600;
+}
+
+.il-table td.il-rejected {
+	color: var(--violet);
+}
+
+.il-table td.il-clean {
+	color: var(--lc-active);
+}
+
+.mu-choices .op-code {
+	font-weight: 600;
+	letter-spacing: 0;
+}
+
+.op-case .note {
+	margin: 0;
+}

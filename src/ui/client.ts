@@ -10,21 +10,27 @@
 // the tool's structuredContent -> render. The app makes no network requests.
 
 import type {
+	DemoView,
 	GalleryCard,
 	OperantView,
 	ProjectGalleryView,
 	ProjectTimelineView,
 } from "../types";
 import {
+	type DemoState,
+	demoBody,
 	filterCards,
 	type GallerySort,
 	type GalleryState,
 	galleryCards,
 	galleryControls,
 	galleryHeader,
+	type IlMode,
 	type OperantState,
 	operantBody,
 	type RenderOptions,
+	SCHEDULES,
+	type Schedule,
 	timelineBody,
 } from "./render";
 
@@ -234,6 +240,92 @@ export function startApp(): () => void {
 		drawOperant();
 	}
 
+	// Playable demos: a new tool result resets them; clicks re-render.
+	const demo: { view: DemoView | null; state: DemoState } = {
+		view: null,
+		state: freshDemoState(),
+	};
+
+	function freshDemoState(): DemoState {
+		return {
+			il: { schedule: "ABBA", mode: "warn", step: 0 },
+			museum: { round: 0, answers: {} },
+		};
+	}
+
+	function drawDemo(...focus: string[]): void {
+		if (!root || !demo.view) return;
+		root.innerHTML = demoBody(demo.view, demo.state);
+		for (const selector of focus) {
+			const el = root.querySelector<HTMLElement>(selector);
+			if (el) {
+				el.focus();
+				break;
+			}
+		}
+	}
+
+	function renderDemo(view: DemoView): void {
+		shown = "content";
+		demo.view = view;
+		demo.state = freshDemoState();
+		drawDemo();
+	}
+
+	/** Interleaving and museum clicks; true when the click was a demo control. */
+	function demoClick(target: Element | null): boolean {
+		const view = demo.view;
+		if (!view?.available) return false;
+		const il = demo.state.il;
+		const schedule =
+			target?.closest<HTMLElement>("[data-il-schedule]")?.dataset.ilSchedule;
+		if (schedule && (SCHEDULES as readonly string[]).includes(schedule)) {
+			demo.state.il = { ...il, schedule: schedule as Schedule, step: 0 };
+			drawDemo(`[data-il-schedule="${schedule}"]`);
+			return true;
+		}
+		const mode = target?.closest<HTMLElement>("[data-il-mode]")?.dataset.ilMode;
+		if (mode === "warn" || mode === "enforce") {
+			demo.state.il = { ...il, mode: mode as IlMode, step: 0 };
+			drawDemo(`[data-il-mode="${mode}"]`);
+			return true;
+		}
+		const step = target?.closest<HTMLElement>("[data-il-step]")?.dataset.ilStep;
+		if (step === "next" || step === "all" || step === "reset") {
+			il.step =
+				step === "reset" ? 0 : step === "all" ? 4 : Math.min(il.step + 1, 4);
+			drawDemo(
+				step === "reset"
+					? '[data-il-step="next"]'
+					: '[data-il-step="next"]:not([disabled])',
+				'[data-il-step="reset"]',
+			);
+			return true;
+		}
+		if (view.demo !== "failure-museum") return false;
+		const museum = demo.state.museum;
+		const choice =
+			target?.closest<HTMLElement>("[data-mu-choice]")?.dataset.muChoice;
+		if (choice !== undefined) {
+			if (museum.answers[museum.round] === undefined) {
+				museum.answers[museum.round] = Number(choice);
+				drawDemo("[data-mu-next]");
+			}
+			return true;
+		}
+		if (target?.closest("[data-mu-next]")) {
+			museum.round += 1;
+			drawDemo("[data-mu-choice]", "[data-mu-restart]");
+			return true;
+		}
+		if (target?.closest("[data-mu-restart]")) {
+			demo.state.museum = { round: 0, answers: {} };
+			drawDemo("[data-mu-choice]");
+			return true;
+		}
+		return false;
+	}
+
 	/** Demo and tab clicks; returns true when the click was an OPERANT control. */
 	function operantClick(target: Element | null): boolean {
 		const view = operant.view;
@@ -284,6 +376,14 @@ export function startApp(): () => void {
 					isRecord(data.demo)))
 		) {
 			renderOperant(data as OperantView);
+		} else if (
+			data.view === "demo" &&
+			(data.available === false ||
+				(data.available === true &&
+					(data.demo === "interleaving" ||
+						(data.demo === "failure-museum" && Array.isArray(data.exhibits)))))
+		) {
+			renderDemo(data as DemoView);
 		} else {
 			setStatus("This tool result is not a view this app knows.");
 		}
@@ -424,6 +524,7 @@ export function startApp(): () => void {
 			return;
 		}
 		if (operantClick(target)) return;
+		if (demoClick(target)) return;
 		const chip = target?.closest<HTMLElement>("[data-lifecycle]");
 		if (chip?.dataset.lifecycle) {
 			gallery.state.lifecycle = chip.dataset.lifecycle;
