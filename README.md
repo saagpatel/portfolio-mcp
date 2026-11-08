@@ -148,8 +148,9 @@ curated projects, repo profiles and OPERANT figures added, removed or changed,
 with the fields that changed, plus any change or reorder in the index lists
 that a document or profile record does not already account for. That is the
 readable account of a re-bake whose git diff is one 1.6 MB line. It never
-fails the job: if it cannot read a corpus file, the step shows as failed while
-the job still passes on the rebuild-and-hash check.
+fails the job: if it cannot read or parse a corpus file (say, after a generator
+change to the file's wrapper), the step shows as failed and the job's result
+still comes from the scope guard and the rebuild-and-hash check.
 
 **Landing corpus changes (Saagar's decision for generated corpus files).** The
 generated file is a single 1.6 MB line, beyond what a two-key review can read, so
