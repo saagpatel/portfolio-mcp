@@ -12,7 +12,7 @@ const builder = resolve("scripts/build-corpus.mjs");
 const temporaryDirs = [];
 
 const PIN = {
-	repository: "https://github.com/example/portfolio-index",
+	repository: "https://github.com/saagpatel/portfolio-index",
 	commit: "0123456789abcdef0123456789abcdef01234567",
 };
 
@@ -115,13 +115,16 @@ describe("corpus-source rebuild-and-hash check", () => {
 		expect(await readFile(ws.corpus, "utf8")).toContain("Public text.");
 	});
 
-	it("rejects a pin that is not a full commit SHA on github.com", async () => {
+	it("rejects a pin that is not a full commit SHA of the fixed source repository", async () => {
 		const ws = await workspace();
 		bake(ws);
 		for (const pin of [
 			{ ...PIN, commit: "main" },
 			{ ...PIN, commit: "0123456" },
 			{ ...PIN, repository: "https://example.com/portfolio-index" },
+			// Another GitHub repository: a re-bake PR must not redirect the source.
+			{ ...PIN, repository: "https://github.com/someone-else/portfolio-index" },
+			{ ...PIN, repository: undefined },
 		]) {
 			await writeFile(ws.pin, JSON.stringify(pin));
 			const result = corpusSource(ws, "--check");
