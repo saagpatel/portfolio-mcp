@@ -38,7 +38,10 @@ const corpusPath = resolve(
 const sourceDirArg = option("--source-dir");
 
 const COMMIT = /^[0-9a-f]{40}$/;
-const REPOSITORY = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+$/;
+// The source repository is fixed here, in reviewed code, not taken from the
+// pin: re-bake PRs (pin + corpus) merge without a two-key review, so the pin
+// may move the commit but must not point the check at another repository.
+const SOURCE_REPOSITORY = "https://github.com/saagpatel/portfolio-index";
 
 /** A check failure: thrown (not process.exit) so main()'s cleanup still runs
  * and never leaves a checkout of the private source behind. */
@@ -72,9 +75,9 @@ async function readPin() {
 	} catch (error) {
 		fail(`cannot read ${pinPath}: ${error.message}`);
 	}
-	if (typeof pin?.repository !== "string" || !REPOSITORY.test(pin.repository)) {
+	if (pin?.repository !== SOURCE_REPOSITORY) {
 		fail(
-			`${pinPath}: repository must be an https://github.com/<owner>/<name> URL`,
+			`${pinPath}: repository must be ${SOURCE_REPOSITORY}; changing the source repository is a reviewed code change in scripts/corpus-source.mjs`,
 		);
 	}
 	if (typeof pin?.commit !== "string" || !COMMIT.test(pin.commit)) {
