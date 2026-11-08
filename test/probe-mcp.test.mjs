@@ -1,23 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	checkPendingTools,
+	EXPECTED_TOOLS,
 	parseArgs,
 	probeEndpoint,
 } from "../scripts/probe-mcp.mjs";
 
-const ALL_TOOLS = [
-	"get_document",
-	"get_operant_results",
-	"get_profile",
-	"get_repo_profile",
-	"list_corpus",
-	"list_projects",
-	"list_repo_profiles",
-	"search",
-	"show_operant_results",
-	"show_project_gallery",
-	"show_project_timeline",
-];
+// Derived from the probe itself, so adding a tool never breaks these fixtures.
+const ALL_TOOLS = [...EXPECTED_TOOLS];
 
 function fakeEndpoint(liveTools) {
 	return vi.fn(async (_url, init) => {
@@ -80,7 +70,7 @@ describe("probe-mcp", () => {
 		const summary = await probeEndpoint("http://probe.test/mcp", {
 			allowPendingTools: true,
 		});
-		expect(summary.pendingTools).toEqual(["show_project_timeline"]);
+		expect(summary.pendingTools).toEqual([ALL_TOOLS.at(-1)]);
 		expect(summary.operantCall.available).toBe(true);
 	});
 
