@@ -119,8 +119,11 @@ described below.
 
 ## Corpus updates
 
-`src/corpus.generated.ts` is baked from the public `portfolio-index` commit pinned
-in [`corpus.source.json`](corpus.source.json):
+`src/corpus.generated.ts` is baked from the `portfolio-index` commit pinned in
+[`corpus.source.json`](corpus.source.json). That repository is private (its built
+artifacts are the public saagarpatel.dev corpus), so fetching it needs a
+read-only token in `PORTFOLIO_INDEX_TOKEN`; CI reads it from the
+`PORTFOLIO_INDEX_READ_TOKEN` secret.
 
 ```sh
 npm run corpus:verify   # fetch the pinned commit, re-bake, fail unless byte-identical
@@ -129,7 +132,7 @@ npm run corpus:rebake   # after editing the pin: re-bake the committed file from
 
 CI runs the same rebuild-and-hash check in its `corpus-rebuild` job, so the
 committed corpus is always exactly what the committed generator makes from the
-pinned public source. Never edit the generated file by hand.
+pinned source. Never edit the generated file by hand.
 
 **Landing corpus changes (Saagar's decision for generated corpus files).** The
 generated file is a single 1.6 MB line, beyond what a two-key review can read, so

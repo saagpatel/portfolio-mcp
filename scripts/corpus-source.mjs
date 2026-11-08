@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Rebuild-and-hash check for the generated corpus.
 //
-// src/corpus.generated.ts is baked by scripts/build-corpus.mjs from the public
+// src/corpus.generated.ts is baked by scripts/build-corpus.mjs from the
 // portfolio-index commit pinned in corpus.source.json. This script fetches that
 // commit, re-bakes it with the committed generator, and compares SHA-256 hashes:
 //
@@ -12,7 +12,12 @@
 // pinned commit is then not verified); --pin and --corpus override the default
 // paths. Generated corpus PRs land on this check, not on a two-key review: the
 // file is too large for a reviewer's diff, and the check proves it is exactly
-// what the reviewed generator makes from the pinned public source.
+// what the reviewed generator makes from the pinned source.
+//
+// portfolio-index is a private repository (its built artifacts are the public
+// corpus), so fetching it needs a read-only token in PORTFOLIO_INDEX_TOKEN. The
+// token reaches git through GIT_CONFIG_* environment variables, never through
+// arguments, so it cannot appear in a logged command line.
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -40,14 +45,14 @@ function fail(message) {
 	process.exit(1);
 }
 
-function run(command, commandArgs, options = {}) {
+function run(command, commandArgs, options = {}, hint = "") {
 	const result = spawnSync(command, commandArgs, {
 		encoding: "utf8",
 		...options,
 	});
 	if (result.status !== 0) {
 		fail(
-			`${command} ${commandArgs.join(" ")} failed:\n${result.stderr || result.stdout}`,
+			`${command} ${commandArgs.join(" ")} failed:\n${result.stderr || result.stdout}${hint}`,
 		);
 	}
 	return result.stdout;
@@ -71,19 +76,33 @@ async function readPin() {
 	return pin;
 }
 
+/** Git environment for fetching the pinned repository: never prompt, and send
+ * PORTFOLIO_INDEX_TOKEN (when set) as an auth header via config variables. */
+function gitEnv(pin) {
+	const env = { ...process.env, GIT_TERMINAL_PROMPT: "0" };
+	const token = process.env.PORTFOLIO_INDEX_TOKEN;
+	if (token) {
+		const basic = Buffer.from(`x-access-token:${token}`).toString("base64");
+		env.GIT_CONFIG_COUNT = "1";
+		env.GIT_CONFIG_KEY_0 = `http.${new URL(pin.repository).origin}/.extraheader`;
+		env.GIT_CONFIG_VALUE_0 = `AUTHORIZATION: basic ${basic}`;
+	}
+	return env;
+}
+
 /** Fetch exactly the pinned commit into a fresh directory and verify it. */
 function fetchSource(pin, dir) {
+	const env = gitEnv(pin);
+	const hint = process.env.PORTFOLIO_INDEX_TOKEN
+		? ""
+		: "\nportfolio-index is private: set PORTFOLIO_INDEX_TOKEN to a read-only token (CI: the PORTFOLIO_INDEX_READ_TOKEN secret).";
 	run("git", ["init", "-q", dir]);
-	run("git", [
-		"-C",
-		dir,
-		"fetch",
-		"-q",
-		"--depth",
-		"1",
-		pin.repository,
-		pin.commit,
-	]);
+	run(
+		"git",
+		["-C", dir, "fetch", "-q", "--depth", "1", pin.repository, pin.commit],
+		{ env },
+		hint,
+	);
 	const fetched = run("git", ["-C", dir, "rev-parse", "FETCH_HEAD"]).trim();
 	if (fetched !== pin.commit) {
 		fail(`fetched ${fetched}, expected the pinned ${pin.commit}`);

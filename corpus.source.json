@@ -1,5 +1,5 @@
 {
 	"repository": "https://github.com/saagpatel/portfolio-index",
-	"commit": "6a26802f80775b13d739d2721cac170d04eae0bd",
-	"note": "The public portfolio-index commit that src/corpus.generated.ts is baked from. CI re-bakes from it and requires a byte-identical result."
+	"commit": "a904d63f3e9a5623e0cfe376762ae7a63f886a68",
+	"note": "The portfolio-index commit that src/corpus.generated.ts is baked from. The repository is private; its built artifacts are the public saagarpatel.dev corpus. CI re-bakes from this commit and requires a byte-identical result."
 }
