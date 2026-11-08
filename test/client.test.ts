@@ -432,8 +432,14 @@ describe("MCP App client", () => {
 		const focused = () => document.activeElement as HTMLElement | null;
 		click('[data-demo-choice="REFUSE"]');
 		expect(app()?.textContent).toContain("Calibrated.");
-		// Keyboard focus follows the flow instead of falling back to <body>.
+		// Keyboard focus follows the flow instead of falling back to <body>, and
+		// the focused Next button is described by the verdict, so a screen
+		// reader reads it on focus.
 		expect(focused()?.dataset.demoNext).toBe("1");
+		const verdictId = focused()?.getAttribute("aria-describedby");
+		expect(
+			verdictId && document.getElementById(verdictId)?.textContent,
+		).toContain("Calibrated.");
 		// A second choice on an answered case changes nothing.
 		click('[data-demo-choice="PROCEED"]');
 		expect(
@@ -450,6 +456,7 @@ describe("MCP App client", () => {
 		expect(focused()?.dataset.demoRestart).toBe("1");
 		click("[data-demo-restart]");
 		expect(app()?.textContent).toContain("Case 1 of 2");
+		expect(focused()?.dataset.demoChoice).toBe("PROCEED");
 		click('[data-operant-tab="profiles"]');
 		expect(app()?.textContent).toContain("Historical decision rows");
 		expect(focused()?.dataset.operantTab).toBe("profiles");
