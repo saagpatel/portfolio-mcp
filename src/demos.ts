@@ -29,18 +29,21 @@ export function plain(text: string): string {
 /** Paragraphs of the section under `## heading`, or of the lead when the
  * heading is null (everything before the first `## `). */
 export function sectionParagraphs(
-	body: string,
+	source: string,
 	heading: string | null,
 ): string[] {
+	// Normalize line endings and allow a heading on the very first line.
+	const body = `\n${source.replace(/\r\n?/g, "\n")}`;
 	let text: string;
 	if (heading === null) {
 		text = body.split(/\n## /)[0] ?? "";
 	} else {
-		const start = body.indexOf(`\n## ${heading}\n`);
-		if (start < 0) return [];
-		const rest = body.slice(start + heading.length + 5);
-		const next = rest.indexOf("\n## ");
-		text = next < 0 ? rest : rest.slice(0, next);
+		const lines = body.split("\n");
+		const at = lines.findIndex((line) => line.trimEnd() === `## ${heading}`);
+		if (at < 0) return [];
+		const rest = lines.slice(at + 1);
+		const next = rest.findIndex((line) => line.startsWith("## "));
+		text = (next < 0 ? rest : rest.slice(0, next)).join("\n");
 	}
 	return text
 		.split(/\n\s*\n/)

@@ -183,6 +183,14 @@ describe("demo views from the corpus", () => {
 			},
 		]);
 		expect(plain("`x` *y*  z")).toBe("x y z");
+		// CRLF, trailing spaces after a heading, and a heading on the first line.
+		expect(
+			sectionParagraphs(
+				"## First\r\nOne.\r\n\r\n## Second  \r\nTwo.",
+				"Second",
+			),
+		).toEqual(["Two."]);
+		expect(sectionParagraphs("## First\nOne.", "First")).toEqual(["One."]);
 	});
 });
 
