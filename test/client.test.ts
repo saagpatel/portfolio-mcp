@@ -501,6 +501,19 @@ describe("MCP App client", () => {
 		).toBe("true");
 	});
 
+	it("refuses a malformed interleaving payload instead of throwing", async () => {
+		const { fromHost } = await boot();
+		fromHost(
+			toolResult({
+				view: "demo",
+				demo: "interleaving",
+				available: true,
+				title: "x",
+			}),
+		);
+		expect(app()?.textContent).toContain("not a view this app knows");
+	});
+
 	it("plays the failure museum: match, verdict, next, summary", async () => {
 		const exhibit = (n: number) => ({
 			category: "Tools",

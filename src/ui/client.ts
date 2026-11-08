@@ -380,7 +380,11 @@ export function startApp(): () => void {
 			data.view === "demo" &&
 			(data.available === false ||
 				(data.available === true &&
-					(data.demo === "interleaving" ||
+					((data.demo === "interleaving" &&
+						Array.isArray(data.intro) &&
+						isRecord(data.initial) &&
+						typeof data.initial.content === "string" &&
+						typeof data.initial.version === "number") ||
 						(data.demo === "failure-museum" && Array.isArray(data.exhibits)))))
 		) {
 			renderDemo(data as DemoView);
