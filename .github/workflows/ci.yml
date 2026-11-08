@@ -21,3 +21,18 @@ jobs:
           cache: npm
       - run: npm ci
       - run: make check
+
+  # Rebuild-and-hash check for the generated corpus (Saagar's decision for
+  # generated corpus files): re-bake src/corpus.generated.ts from the
+  # portfolio-index commit pinned in corpus.source.json with the committed
+  # generator, and fail unless the result is byte-identical. Generated-corpus
+  # PRs merge on this check instead of a two-key review of the 1.6 MB file.
+  corpus-rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - run: node scripts/corpus-source.mjs --check
