@@ -57,6 +57,7 @@ export function startApp(): () => void {
 	const viewKind = document.documentElement.dataset.view ?? "gallery";
 	let capabilities: HostCapabilities = {};
 	let nextId = 1;
+	let stopped = false;
 	const pending = new Map<
 		string | number,
 		{ resolve: (v: unknown) => void; reject: (e: Error) => void }
@@ -332,12 +333,14 @@ export function startApp(): () => void {
 				notify("ui/notifications/initialized", {});
 			})
 			.catch((error: unknown) => {
+				if (stopped) return; // stop() rejected the handshake; the DOM is no longer ours
 				console.error("ui/initialize failed", error);
 				setStatus("The host did not finish the MCP Apps handshake.");
 			});
 	}
 
 	return () => {
+		stopped = true;
 		document.removeEventListener("click", onClick);
 		document.removeEventListener("input", onInput);
 		document.removeEventListener("change", onChange);
