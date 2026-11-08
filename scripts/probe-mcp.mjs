@@ -3,6 +3,12 @@
 // tools/list, read-only annotations) come from saagar-mcp-kit's driver; this
 // script keeps only what is portfolio-specific — the expected tool set, the
 // server name, and the two domain calls (search + get_operant_results).
+//
+// By default tools/list must match EXPECTED_TOOLS exactly, which is what the
+// local smoke run and the post-deploy readback want. A branch that adds a tool
+// is ahead of the live Worker until it deploys, so --allow-pending-tools lets
+// expected tools be missing from the endpoint (reported as pendingTools) while
+// still failing on any tool the checkout does not expect.
 import {
 	parseToolPayload,
 	probeHttpServer,
@@ -25,15 +31,20 @@ const EXPECTED_TOOLS = [
 	"show_project_timeline",
 ];
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
 	const out = {
 		endpoint:
 			globalThis.process?.env?.PORTFOLIO_MCP_ENDPOINT || DEFAULT_ENDPOINT,
 		query: "verification",
 		limit: 2,
+		allowPendingTools: false,
 	};
 	for (let i = 0; i < argv.length; i += 1) {
 		const arg = argv[i];
+		if (arg === "--allow-pending-tools") {
+			out.allowPendingTools = true;
+			continue;
+		}
 		const [key, inlineValue] = arg.split("=", 2);
 		const value = inlineValue ?? argv[i + 1];
 		if (
@@ -54,15 +65,47 @@ function parseArgs(argv) {
 	return out;
 }
 
+// Domain calls below need these live even when other tools are pending.
+const REQUIRED_LIVE_TOOLS = ["search", "get_operant_results"];
+
+/** Expected tools absent from `liveNames`; throws on unexpected or required. */
+export function checkPendingTools(liveNames) {
+	const live = new Set(liveNames);
+	const unexpected = [...live].filter((name) => !EXPECTED_TOOLS.includes(name));
+	if (unexpected.length > 0) {
+		throw new Error(
+			`tools/list has tools this checkout does not expect: ${JSON.stringify(
+				unexpected.sort(),
+			)}`,
+		);
+	}
+	const pending = EXPECTED_TOOLS.filter((name) => !live.has(name));
+	const missingRequired = REQUIRED_LIVE_TOOLS.filter((name) =>
+		pending.includes(name),
+	);
+	if (missingRequired.length > 0) {
+		throw new Error(
+			`tools/list is missing tools the probe calls: ${JSON.stringify(
+				missingRequired,
+			)}`,
+		);
+	}
+	return pending;
+}
+
 export async function probeEndpoint(endpoint = DEFAULT_ENDPOINT, options = {}) {
 	const query = options.query || "verification";
 	const limit = options.limit || 2;
+	const allowPendingTools = options.allowPendingTools === true;
 
 	const shared = await probeHttpServer(endpoint, {
 		serverName: SERVER_NAME,
-		tools: EXPECTED_TOOLS,
+		tools: allowPendingTools ? undefined : EXPECTED_TOOLS,
 		clientName: "portfolio-mcp-probe",
 	});
+	const pendingTools = allowPendingTools
+		? checkPendingTools(shared.toolsList.tools.map((tool) => tool.name))
+		: [];
 
 	const search = await rpc(endpoint, 3, "tools/call", {
 		name: "search",
@@ -90,6 +133,7 @@ export async function probeEndpoint(endpoint = DEFAULT_ENDPOINT, options = {}) {
 
 	return {
 		...shared,
+		...(allowPendingTools ? { pendingTools } : {}),
 		searchCall: {
 			status: search.status,
 			contentType: search.contentType,
@@ -114,6 +158,11 @@ async function main() {
 	const options = parseArgs(argv);
 	const summary = await probeEndpoint(options.endpoint, options);
 	console.log(JSON.stringify(summary, null, 2));
+	if (summary.pendingTools?.length) {
+		console.error(
+			`note: ${summary.pendingTools.length} expected tool(s) not live yet: ${summary.pendingTools.join(", ")}`,
+		);
+	}
 }
 
 if (globalThis.process?.argv?.[1]?.endsWith("/probe-mcp.mjs")) {

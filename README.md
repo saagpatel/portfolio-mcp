@@ -181,6 +181,12 @@ npm run corpus:verify && npm run deploy  # wrangler deploy
 npm run probe:mcp                        # post-deploy live MCP readback
 ```
 
+The readback requires the live tool list to match this checkout exactly. To probe
+the live Worker from a branch that adds a tool before it deploys, run
+`npm run probe:mcp -- --allow-pending-tools`: expected tools missing from the
+Worker are listed as `pendingTools`, and any tool the checkout does not expect
+still fails.
+
 Operator-gated (needs Cloudflare auth). v1 still deploys to the default
 `portfolio-mcp.<account>.workers.dev` URL, and `npm run probe:mcp` uses that stable
 Worker URL by default. Public discovery now advertises the verified custom endpoint
