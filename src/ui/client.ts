@@ -151,7 +151,12 @@ export function startApp(): () => void {
 		canAsk: Boolean(capabilities.message),
 	});
 
+	// Whether anything replaced the initial "Loading…" (a status or a view);
+	// the slow-handshake watchdog must not overwrite either.
+	let contentShown = false;
+
 	function setStatus(text: string): void {
+		contentShown = true;
 		if (root) root.innerHTML = `<p class="loading">${text}</p>`;
 	}
 
@@ -171,6 +176,7 @@ export function startApp(): () => void {
 
 	function renderGallery(view: ProjectGalleryView): void {
 		if (!root) return;
+		contentShown = true;
 		gallery.view = view;
 		// Each tool result starts fresh: a host may send a second result to the same
 		// frame, and filters left over from the first would hide its cards. Any
@@ -181,6 +187,7 @@ export function startApp(): () => void {
 	}
 
 	function renderTimeline(view: ProjectTimelineView): void {
+		contentShown = true;
 		if (root) root.innerHTML = timelineBody(view, options());
 	}
 
@@ -227,6 +234,16 @@ export function startApp(): () => void {
 	const hostDeclined = (result: unknown): boolean =>
 		isRecord(result) && result.isError === true;
 
+	// One note per control, so two requests from the same card (Ask and
+	// Repository) never clear each other's status.
+	const notes = new WeakMap<HTMLElement, HTMLElement>();
+
+	function dropNote(anchor: HTMLElement, el: HTMLElement): void {
+		if (notes.get(anchor) !== el) return;
+		el.remove();
+		notes.delete(anchor);
+	}
+
 	/** Show the outcome of a host request beside the control that started it.
 	 * The frame can be taller than the visible chat, so a page-level toast could
 	 * land off-screen; next to the button is where the user is looking. */
@@ -235,15 +252,17 @@ export function startApp(): () => void {
 		text: string,
 		tone: "ok" | "error",
 		sticky = false,
-	): void {
-		anchor.parentElement?.querySelector(".note-inline")?.remove();
+	): HTMLElement {
+		notes.get(anchor)?.remove();
 		const el = document.createElement("span");
 		el.className = "note-inline";
 		el.dataset.tone = tone;
 		el.setAttribute("role", "status");
 		el.textContent = text;
 		anchor.insertAdjacentElement("afterend", el);
-		if (!sticky) setTimeout(() => el.remove(), NOTE_MS);
+		notes.set(anchor, el);
+		if (!sticky) setTimeout(() => dropNote(anchor, el), NOTE_MS);
+		return el;
 	}
 
 	/** Run a host request for a clicked control: after SLOW_MS without a reply,
@@ -253,16 +272,15 @@ export function startApp(): () => void {
 		method: string,
 		params: unknown,
 	): Promise<unknown> {
-		const slow = setTimeout(
-			() => note(anchor, WAITING_TEXT, "ok", true),
-			SLOW_MS,
-		);
-		// Runs before the caller's handlers: drop the waiting note so a success
-		// that shows nothing (an opened link) does not leave it behind.
+		let waiting: HTMLElement | undefined;
+		const slow = setTimeout(() => {
+			waiting = note(anchor, WAITING_TEXT, "ok", true);
+		}, SLOW_MS);
+		// Runs before the caller's handlers: drop this request's waiting note so
+		// a success that shows nothing (an opened link) does not leave it behind.
 		return request(method, params).finally(() => {
 			clearTimeout(slow);
-			const waiting = anchor.parentElement?.querySelector(".note-inline");
-			if (waiting?.textContent === WAITING_TEXT) waiting.remove();
+			if (waiting) dropNote(anchor, waiting);
 		});
 	}
 
@@ -406,9 +424,8 @@ export function startApp(): () => void {
 		// No timeout here either, but a host that is slow to answer the handshake
 		// gets a visible status instead of an indefinite "Loading…".
 		slowInit = setTimeout(() => {
-			if (root?.querySelector(".loading")) {
+			if (!contentShown)
 				setStatus("Still waiting for the host to start the app…");
-			}
 		}, SLOW_MS);
 		request("ui/initialize", {
 			appInfo: APP_INFO,

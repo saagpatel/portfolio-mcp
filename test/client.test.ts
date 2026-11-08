@@ -263,6 +263,30 @@ describe("MCP App client", () => {
 		}
 	});
 
+	it("does not overwrite a cancelled status with the handshake status", async () => {
+		document.body.innerHTML =
+			'<main id="app"><p class="loading">Loading…</p></main>';
+		const parent = { postMessage: () => {} };
+		Object.defineProperty(window, "parent", {
+			value: parent,
+			configurable: true,
+		});
+		vi.useFakeTimers();
+		try {
+			stop = startApp();
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: { jsonrpc: "2.0", method: "ui/notifications/tool-cancelled" },
+					source: parent as unknown as MessageEventSource,
+				}),
+			);
+			await vi.advanceTimersByTimeAsync(10_001);
+			expect(app()?.textContent).toBe("The tool call was cancelled.");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("shows a note and sends nothing when opened outside a host frame", () => {
 		document.body.innerHTML = '<main id="app"></main>';
 		expect(window.parent).toBe(window);
@@ -365,6 +389,36 @@ describe("MCP App client", () => {
 				host.fromHost({ jsonrpc: "2.0", id: request?.id, result: {} });
 				await vi.advanceTimersByTimeAsync(0);
 				expect(document.querySelector(".note-inline")).toBeNull();
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		it("keeps each control's waiting note when another request on the card settles", async () => {
+			const host = await boot({ message: {}, openLinks: {} });
+			host.fromHost(toolResult(galleryView([card("ink", null)])));
+			vi.useFakeTimers();
+			try {
+				document.querySelector<HTMLElement>("[data-ask]")?.click();
+				document.querySelector<HTMLElement>("[data-open-link]")?.click();
+				await vi.advanceTimersByTimeAsync(10_001);
+				const texts = () =>
+					[...document.querySelectorAll(".note-inline")].map(
+						(n) => n.textContent,
+					);
+				expect(texts()).toEqual([
+					"Waiting for the host…",
+					"Waiting for the host…",
+				]);
+				const link = host.sent.find((m) => m.method === "ui/open-link");
+				host.fromHost({ jsonrpc: "2.0", id: link?.id, result: {} });
+				await vi.advanceTimersByTimeAsync(0);
+				// The link's note is gone; Ask is still waiting and still says so.
+				expect(texts()).toEqual(["Waiting for the host…"]);
+				const askNote = document.querySelector(".note-inline");
+				expect(askNote?.previousElementSibling?.matches("[data-ask]")).toBe(
+					true,
+				);
 			} finally {
 				vi.useRealTimers();
 			}
