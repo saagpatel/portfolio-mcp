@@ -57,6 +57,23 @@ jobs:
               exit 1
             fi
           fi
+      # The corpus diff is one 1.6 MB line, so say in the job summary what the
+      # re-bake changed: documents, projects, repo profiles and OPERANT figures
+      # added, removed or changed. Reporting only; it never fails the job over
+      # content, and it gets no token.
+      - name: Summarize what the re-bake changed
+        if: ${{ github.event_name == 'pull_request' && !cancelled() }}
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          base=$(git merge-base "origin/$BASE_REF" HEAD)
+          if git diff --quiet "$base" HEAD -- src/corpus.generated.ts; then
+            echo "src/corpus.generated.ts is unchanged; nothing to summarize."
+            exit 0
+          fi
+          git show "$base:src/corpus.generated.ts" > "$RUNNER_TEMP/corpus.base.ts"
+          node scripts/corpus-diff.mjs "$RUNNER_TEMP/corpus.base.ts" src/corpus.generated.ts \
+            | tee -a "$GITHUB_STEP_SUMMARY"
       # portfolio-index is private: a read-only (contents: read) token for it.
       # Runs even when the scope guard fails, so an output-changing generator
       # PR (owner-merged) still shows whether its corpus matches the rebuild.
