@@ -32,6 +32,7 @@ const PROTOCOL_VERSION = "2026-01-26";
 const SLOW_MS = 10_000;
 const NOTE_MS = 6_000;
 const WAITING_TEXT = "Waiting for the host…";
+const SLOW_INIT_TEXT = "Still waiting for the host to start the app…";
 const APP_INFO = { name: "portfolio-explorer", version: "0.1.0" };
 
 type JsonRpcMessage = {
@@ -151,12 +152,19 @@ export function startApp(): () => void {
 		canAsk: Boolean(capabilities.message),
 	});
 
-	// Whether anything replaced the initial "Loading…" (a status or a view);
-	// the slow-handshake watchdog must not overwrite either.
-	let contentShown = false;
+	// What #app shows: the page's initial "Loading…", the slow-handshake
+	// status, or content (any other status, or a view). The watchdog only
+	// replaces "loading"; a finished handshake only puts "loading" back over
+	// "slow-init", so neither ever overwrites content.
+	let shown: "loading" | "slow-init" | "content" = "loading";
+	const loadingHtml =
+		root?.innerHTML.trim() || '<p class="loading">Loading…</p>';
 
-	function setStatus(text: string): void {
-		contentShown = true;
+	function setStatus(
+		text: string,
+		kind: "slow-init" | "content" = "content",
+	): void {
+		shown = kind;
 		if (root) root.innerHTML = `<p class="loading">${text}</p>`;
 	}
 
@@ -176,7 +184,7 @@ export function startApp(): () => void {
 
 	function renderGallery(view: ProjectGalleryView): void {
 		if (!root) return;
-		contentShown = true;
+		shown = "content";
 		gallery.view = view;
 		// Each tool result starts fresh: a host may send a second result to the same
 		// frame, and filters left over from the first would hide its cards. Any
@@ -187,7 +195,7 @@ export function startApp(): () => void {
 	}
 
 	function renderTimeline(view: ProjectTimelineView): void {
-		contentShown = true;
+		shown = "content";
 		if (root) root.innerHTML = timelineBody(view, options());
 	}
 
@@ -424,8 +432,7 @@ export function startApp(): () => void {
 		// No timeout here either, but a host that is slow to answer the handshake
 		// gets a visible status instead of an indefinite "Loading…".
 		slowInit = setTimeout(() => {
-			if (!contentShown)
-				setStatus("Still waiting for the host to start the app…");
+			if (shown === "loading") setStatus(SLOW_INIT_TEXT, "slow-init");
 		}, SLOW_MS);
 		request("ui/initialize", {
 			appInfo: APP_INFO,
@@ -438,6 +445,12 @@ export function startApp(): () => void {
 						capabilities = res.hostCapabilities as HostCapabilities;
 					}
 					applyContext(res.hostContext);
+				}
+				// The host has started the app: drop the slow-start status, but
+				// never a status or view that arrived meanwhile.
+				if (shown === "slow-init") {
+					shown = "loading";
+					if (root) root.innerHTML = loadingHtml;
 				}
 				notify("ui/notifications/initialized", {});
 			})

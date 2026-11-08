@@ -258,10 +258,62 @@ describe("MCP App client", () => {
 			expect(
 				sent.some((m) => m.method === "ui/notifications/initialized"),
 			).toBe(true);
+			// The host has started the app, so the slow-start text goes back to
+			// the neutral loading text until a tool result arrives.
+			expect(app()?.textContent).toBe("Loading…");
+			expect(app()?.textContent).not.toContain("Still waiting");
 		} finally {
 			vi.useRealTimers();
 		}
 	});
+
+	it.each([
+		[
+			"a status",
+			{ jsonrpc: "2.0", method: "ui/notifications/tool-cancelled" },
+			"The tool call was cancelled.",
+		],
+		["a view", toolResult(galleryView([card("ink", null)])), "Projects"],
+	])(
+		"keeps %s that arrived during a slow handshake when it finishes",
+		async (_label, message, expected) => {
+			document.body.innerHTML =
+				'<main id="app"><p class="loading">Loading…</p></main>';
+			const sent: Sent[] = [];
+			const parent = { postMessage: (m: Sent) => sent.push(m) };
+			Object.defineProperty(window, "parent", {
+				value: parent,
+				configurable: true,
+			});
+			const fromHost = (data: unknown) =>
+				window.dispatchEvent(
+					new MessageEvent("message", {
+						data,
+						source: parent as unknown as MessageEventSource,
+					}),
+				);
+			vi.useFakeTimers();
+			try {
+				stop = startApp();
+				await vi.advanceTimersByTimeAsync(10_001);
+				expect(app()?.textContent).toContain("Still waiting for the host");
+				fromHost(message);
+				const before = app()?.innerHTML;
+				const init = sent.find((m) => m.method === "ui/initialize");
+				fromHost({
+					jsonrpc: "2.0",
+					id: init?.id,
+					result: { hostCapabilities: {}, hostContext: {} },
+				});
+				await vi.advanceTimersByTimeAsync(0);
+				expect(app()?.innerHTML).toBe(before);
+				expect(app()?.textContent).toContain(expected);
+				expect(app()?.textContent).not.toContain("Loading…");
+			} finally {
+				vi.useRealTimers();
+			}
+		},
+	);
 
 	it("does not overwrite a cancelled status with the handshake status", async () => {
 		document.body.innerHTML =
