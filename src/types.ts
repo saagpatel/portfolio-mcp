@@ -152,3 +152,72 @@ export interface Corpus {
 	repoProfiles?: RepoProfilesData | null; // optional until the profile artifacts are published
 	operant?: OperantData | null; // optional: only present when baked from local sources
 }
+
+// ---- MCP App views ----
+// Plain data the gallery and timeline apps render. The same object is the
+// tool's structuredContent (for hosts that render apps) and its JSON text (for
+// hosts that don't), so neither path sees anything the other can't.
+// Declared as type aliases, not interfaces, so they satisfy the SDK's
+// structuredContent Record<string, unknown> type.
+
+/** A [label, count] pair from the anonymized archive aggregates. */
+export type CountPair = [string, number];
+
+export type GalleryCard = {
+	slug: string;
+	name: string; // display name from the public repo profile, else the slug
+	category: string | null;
+	purpose: string | null;
+	stack: string[];
+	status: string | null;
+	lifecycle: string | null;
+	last_active: string | null;
+	tests: boolean;
+	ci: boolean;
+	url: string | null; // public repository link, only when the profile names one
+};
+
+export type ArchiveSummary = {
+	total: number;
+	maintained: number;
+	tested: number;
+	ci: number;
+	shown: number;
+	stacks: CountPair[];
+	lifecycle: CountPair[];
+};
+
+export type ProjectGalleryView = {
+	view: "gallery";
+	generated_at: string;
+	filters: { status: string | null; lifecycle: string | null };
+	count: number;
+	cards: GalleryCard[];
+	archive: ArchiveSummary;
+};
+
+export type TimelineEvent = {
+	date: string; // YYYY-MM-DD
+	slug: string;
+	name: string;
+	lifecycle: string | null;
+	status: string | null;
+	stack: string[];
+	url: string | null;
+};
+
+export type TimelineMonth = {
+	month: string; // YYYY-MM
+	events: TimelineEvent[];
+};
+
+export type ProjectTimelineView = {
+	view: "timeline";
+	title: string;
+	basis: string; // what each event's date means
+	generated_at: string;
+	count: number;
+	undated: string[]; // slugs with no last-active date
+	months: TimelineMonth[];
+	archive: ArchiveSummary;
+};

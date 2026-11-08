@@ -14,6 +14,7 @@
 		"includes": [
 			"src/**/*.ts",
 			"!src/corpus.generated.ts",
+			"!src/ui/app.generated.ts",
 			"test/**/*.ts",
 			"test/**/*.mjs",
 			"scripts/**/*.mjs",

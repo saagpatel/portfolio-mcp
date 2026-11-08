@@ -1,0 +1,507 @@
+/* Portfolio explorer app styles. Host style variables (MCP Apps spec) win when
+   the host sends them; the fallbacks keep the app legible in hosts that don't.
+   No external fonts or images: the app runs with network access denied. */
+
+:root {
+	--bg: var(--color-background-primary, #fbfaf7);
+	--bg-2: var(--color-background-secondary, #f2efe8);
+	--text: var(--color-text-primary, #1d1b17);
+	--text-2: var(--color-text-secondary, #5d584e);
+	--text-3: var(--color-text-tertiary, #8a8478);
+	--line: var(--color-border-secondary, #e3ded3);
+	--accent: #c2410c;
+	--radius: var(--border-radius-lg, 12px);
+	--sans: var(
+		--font-sans,
+		-apple-system,
+		BlinkMacSystemFont,
+		"Segoe UI",
+		"Helvetica Neue",
+		sans-serif
+	);
+	--display: "Iowan Old Style", "Charter", "Palatino Linotype", Palatino,
+		Georgia, serif;
+	--lc-active: #15803d;
+	--lc-manual-only: #2563eb;
+	--lc-dormant: #b45309;
+	--lc-archived: #78716c;
+	--lc-none: #c4bdb0;
+	color-scheme: light dark;
+}
+
+:root[data-theme="dark"] {
+	--bg: var(--color-background-primary, #191815);
+	--bg-2: var(--color-background-secondary, #23211d);
+	--text: var(--color-text-primary, #f1ede4);
+	--text-2: var(--color-text-secondary, #b9b2a4);
+	--text-3: var(--color-text-tertiary, #8c8577);
+	--line: var(--color-border-secondary, #36332c);
+	--accent: #fb923c;
+	--lc-active: #4ade80;
+	--lc-manual-only: #60a5fa;
+	--lc-dormant: #fbbf24;
+	--lc-archived: #a8a29e;
+	--lc-none: #57534e;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--bg: var(--color-background-primary, #191815);
+		--bg-2: var(--color-background-secondary, #23211d);
+		--text: var(--color-text-primary, #f1ede4);
+		--text-2: var(--color-text-secondary, #b9b2a4);
+		--text-3: var(--color-text-tertiary, #8c8577);
+		--line: var(--color-border-secondary, #36332c);
+		--accent: #fb923c;
+		--lc-active: #4ade80;
+		--lc-manual-only: #60a5fa;
+		--lc-dormant: #fbbf24;
+		--lc-archived: #a8a29e;
+		--lc-none: #57534e;
+	}
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	background: var(--bg);
+	color: var(--text);
+	font-family: var(--sans);
+	font-size: 14px;
+	line-height: 1.45;
+}
+
+main {
+	padding: 20px 16px 24px;
+	max-width: 1080px;
+	margin: 0 auto;
+}
+
+.loading,
+.empty,
+.note {
+	color: var(--text-2);
+}
+
+h1,
+h2 {
+	margin: 0;
+}
+
+h1 {
+	font-family: var(--display);
+	font-weight: 700;
+	font-size: 28px;
+	letter-spacing: -0.01em;
+	line-height: 1.15;
+}
+
+.sub {
+	margin: 4px 0 0;
+	color: var(--text-2);
+	font-weight: 300;
+	font-size: 15px;
+}
+
+/* ---- header ---- */
+
+.head {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 16px 32px;
+	align-items: flex-end;
+	justify-content: space-between;
+	margin-bottom: 20px;
+}
+
+.stats {
+	display: flex;
+	gap: 24px;
+	margin: 0;
+}
+
+.stats dt {
+	color: var(--text-3);
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+}
+
+.stats dd {
+	margin: 0;
+	font-family: var(--display);
+	font-size: 24px;
+	font-weight: 700;
+}
+
+/* ---- controls ---- */
+
+.controls {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 16px;
+	align-items: center;
+	margin-bottom: 8px;
+}
+
+input[type="search"],
+select {
+	font: inherit;
+	color: var(--text);
+	background: var(--bg-2);
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 6px 10px;
+}
+
+input[type="search"] {
+	flex: 1 1 220px;
+	min-width: 0;
+}
+
+.chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.chip {
+	font: inherit;
+	font-size: 12px;
+	color: var(--text-2);
+	background: transparent;
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	padding: 3px 10px;
+	cursor: pointer;
+	transition:
+		background 150ms,
+		color 150ms,
+		border-color 150ms;
+}
+
+.chip:hover {
+	border-color: var(--text-3);
+}
+
+.chip[aria-pressed="true"] {
+	background: var(--text);
+	color: var(--bg);
+	border-color: var(--text);
+}
+
+.sort {
+	color: var(--text-2);
+	font-size: 12px;
+	display: flex;
+	gap: 6px;
+	align-items: center;
+}
+
+.shown {
+	margin: 0 0 12px;
+	color: var(--text-3);
+	font-size: 12px;
+}
+
+:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+/* ---- cards ---- */
+
+.grid {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+	gap: 12px;
+}
+
+.card {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 14px 14px 12px;
+	background: var(--bg-2);
+	border: 1px solid var(--line);
+	border-radius: var(--radius);
+	transition: border-color 150ms;
+}
+
+.card:hover {
+	border-color: var(--text-3);
+}
+
+.card-top {
+	display: flex;
+	justify-content: space-between;
+	gap: 8px;
+	align-items: baseline;
+}
+
+.card h2 {
+	font-size: 16px;
+	font-weight: 700;
+	overflow-wrap: anywhere;
+}
+
+.pill {
+	flex: none;
+	font-size: 11px;
+	padding: 1px 8px;
+	border-radius: 999px;
+	color: var(--lc);
+	border: 1px solid currentColor;
+	white-space: nowrap;
+}
+
+.cat {
+	margin: -4px 0 0;
+	color: var(--text-3);
+	font-size: 12px;
+	text-transform: capitalize;
+}
+
+.purpose {
+	margin: 0;
+	color: var(--text-2);
+}
+
+.stack {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.stack li {
+	font-size: 11px;
+	padding: 1px 6px;
+	border-radius: 4px;
+	background: var(--bg);
+	border: 1px solid var(--line);
+	color: var(--text-2);
+}
+
+.meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 10px;
+	color: var(--text-3);
+	font-size: 12px;
+	margin-top: auto;
+}
+
+.flag.on {
+	color: var(--lc-active);
+}
+
+.actions {
+	display: flex;
+	gap: 8px;
+	padding-top: 8px;
+	border-top: 1px solid var(--line);
+}
+
+.action,
+.ask {
+	font: inherit;
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--accent);
+	background: none;
+	border: none;
+	padding: 0;
+	cursor: pointer;
+	text-decoration: none;
+}
+
+.action:hover,
+.ask:hover {
+	text-decoration: underline;
+}
+
+/* ---- lifecycle colors ---- */
+/* Default first, then the known states; equal specificity, so order decides. */
+
+.chip,
+.pill,
+.seg,
+.swatch,
+.event {
+	--lc: var(--lc-none);
+}
+.lc-active {
+	--lc: var(--lc-active);
+}
+.lc-manual-only {
+	--lc: var(--lc-manual-only);
+}
+.lc-dormant {
+	--lc: var(--lc-dormant);
+}
+.lc-archived {
+	--lc: var(--lc-archived);
+}
+
+/* ---- archive bar ---- */
+
+.lc-bar {
+	margin: 0 0 24px;
+}
+
+.lc-bar figcaption {
+	color: var(--text-3);
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	margin-bottom: 6px;
+}
+
+.bar {
+	display: flex;
+	height: 12px;
+	border-radius: 6px;
+	overflow: hidden;
+	gap: 2px;
+}
+
+.seg {
+	flex-basis: 0;
+	background: var(--lc);
+}
+
+.legend {
+	list-style: none;
+	margin: 8px 0 0;
+	padding: 0;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 16px;
+	color: var(--text-2);
+	font-size: 12px;
+}
+
+.swatch {
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	border-radius: 2px;
+	background: var(--lc);
+	margin-right: 6px;
+}
+
+/* ---- timeline ---- */
+
+.months,
+.events {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.month + .month {
+	margin-top: 24px;
+}
+
+.month h2 {
+	font-family: var(--display);
+	font-size: 18px;
+	font-weight: 700;
+	margin-bottom: 8px;
+}
+
+.count {
+	font-family: var(--sans);
+	font-size: 12px;
+	font-weight: 400;
+	color: var(--text-3);
+	margin-left: 6px;
+}
+
+.event {
+	position: relative;
+	display: grid;
+	grid-template-columns: 52px 16px 1fr auto;
+	align-items: start;
+	gap: 0 8px;
+	padding: 6px 0;
+}
+
+.event::before {
+	content: "";
+	position: absolute;
+	left: 67px;
+	top: 0;
+	bottom: 0;
+	width: 2px;
+	background: var(--line);
+}
+
+.event:first-child::before {
+	top: 14px;
+}
+
+.event:last-child::before {
+	bottom: calc(100% - 14px);
+}
+
+.event time {
+	color: var(--text-3);
+	font-size: 12px;
+	text-align: right;
+	padding-top: 1px;
+	font-variant-numeric: tabular-nums;
+}
+
+.dot {
+	position: relative;
+	z-index: 1;
+	width: 12px;
+	height: 12px;
+	margin: 3px 0 0 2px;
+	border-radius: 50%;
+	background: var(--lc);
+	box-shadow: 0 0 0 3px var(--bg);
+}
+
+.ev-body {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.ev-name {
+	font-weight: 600;
+}
+
+.ev-name a {
+	color: inherit;
+	text-decoration: none;
+}
+
+.ev-name a:hover {
+	color: var(--accent);
+	text-decoration: underline;
+}
+
+.ev-meta {
+	color: var(--text-3);
+	font-size: 12px;
+	overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	* {
+		transition: none !important;
+	}
+}

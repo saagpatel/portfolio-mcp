@@ -258,3 +258,105 @@ describe("repo profile tools", () => {
 		expect("error" in tools.getRepoProfile("__proto__")).toBe(true);
 	});
 });
+
+describe("app views", () => {
+	// A fixture variant where one curated project has a public repo profile and
+	// the archive aggregates carry a malformed row the builder must drop.
+	const githubProfile = fixture.repoProfiles?.profiles.githubrepoauditor;
+	if (!githubProfile) throw new Error("fixture needs a repo profile");
+	const withProfiles = createTools({
+		...fixture,
+		projects: {
+			...fixture.projects,
+			curated: {
+				...fixture.projects.curated,
+				githubrepoauditor: {
+					stack: ["TypeScript"],
+					status: "active",
+					lifecycle: "active",
+					last_active: "2026-06-21",
+					tests: true,
+					ci: false,
+				},
+				undated: {
+					stack: [],
+					status: null,
+					lifecycle: null,
+					last_active: null,
+					tests: false,
+					ci: false,
+				},
+			},
+			archive: {
+				...fixture.projects.archive,
+				stacks: [["TypeScript", 9], ["bad"], 3],
+				lifecycle: [
+					["active", 100],
+					["archived", 20],
+				],
+			},
+		},
+		repoProfiles: fixture.repoProfiles && {
+			...fixture.repoProfiles,
+			profiles: {
+				githubrepoauditor: {
+					...githubProfile,
+					public_reference: "https://github.com/saagpatel/GithubRepoAuditor",
+				},
+				mcpforge: {
+					...githubProfile,
+					repo_id: "mcpforge",
+					display_name: "MCPForge",
+					public_reference: "javascript:alert(1)",
+					summary: { ...githubProfile.summary, purpose: "unknown" },
+				},
+			},
+		},
+	});
+
+	it("builds gallery cards joined with public profiles, newest first", () => {
+		const view = withProfiles.projectGallery();
+		expect(view.view).toBe("gallery");
+		expect(view.cards.map((c) => c.slug)).toEqual([
+			"githubrepoauditor",
+			"mcpforge",
+			"ghostroutes",
+			"undated",
+		]);
+		const [auditor, forge, ghost] = view.cards;
+		expect(auditor).toMatchObject({
+			name: "GithubRepoAuditor",
+			category: "infrastructure",
+			purpose: "repo truth",
+			url: "https://github.com/saagpatel/GithubRepoAuditor",
+		});
+		// "unknown" purpose is dropped and a non-https reference never becomes a link.
+		expect(forge).toMatchObject({ name: "MCPForge", purpose: null, url: null });
+		// No profile: fall back to the slug, no link.
+		expect(ghost).toMatchObject({ name: "ghostroutes", url: null });
+		expect(view.archive.stacks).toEqual([["TypeScript", 9]]);
+	});
+
+	it("filters the gallery by status and lifecycle", () => {
+		expect(withProfiles.projectGallery({ lifecycle: "active" }).count).toBe(2);
+		const archived = withProfiles.projectGallery({ status: "archived" });
+		expect(archived.cards.map((c) => c.slug)).toEqual(["ghostroutes"]);
+		expect(archived.filters).toEqual({ status: "archived", lifecycle: null });
+	});
+
+	it("groups the timeline by last-active month and lists undated projects", () => {
+		const view = withProfiles.projectTimeline();
+		expect(view.view).toBe("timeline");
+		expect(view.months.map((m) => m.month)).toEqual(["2026-06", "2026-01"]);
+		expect(view.months[0]?.events.map((e) => e.slug)).toEqual([
+			"githubrepoauditor",
+			"mcpforge",
+		]);
+		expect(view.count).toBe(3);
+		expect(view.undated).toEqual(["undated"]);
+		expect(view.archive.lifecycle).toEqual([
+			["active", 100],
+			["archived", 20],
+		]);
+	});
+});

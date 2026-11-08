@@ -31,10 +31,11 @@
 	],
 	"scripts": {
 		"build:corpus": "node scripts/build-corpus.mjs",
+		"build:ui": "node scripts/build-ui.mjs",
 		"build:cli": "esbuild src/stdio.ts --bundle --platform=node --format=esm --outfile=dist/stdio.js",
 		"lint": "biome lint .",
 		"format:check": "biome ci --formatter-enabled=true --linter-enabled=false --assist-enabled=false",
-		"typecheck": "tsc --noEmit",
+		"typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.ui.json",
 		"test": "vitest run",
 		"probe:mcp": "node scripts/probe-mcp.mjs",
 		"sign": "mcp-kit-sign sign --manifest=../portfolio-index/.well-known/mcp.json",
