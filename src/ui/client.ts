@@ -153,10 +153,10 @@ export function startApp(): () => void {
 
 	// Whether anything replaced the initial "Loading…" (a status or a view);
 	// the slow-handshake watchdog must not overwrite either.
-	let shown = false;
+	let contentShown = false;
 
 	function setStatus(text: string): void {
-		shown = true;
+		contentShown = true;
 		if (root) root.innerHTML = `<p class="loading">${text}</p>`;
 	}
 
@@ -176,7 +176,7 @@ export function startApp(): () => void {
 
 	function renderGallery(view: ProjectGalleryView): void {
 		if (!root) return;
-		shown = true;
+		contentShown = true;
 		gallery.view = view;
 		// Each tool result starts fresh: a host may send a second result to the same
 		// frame, and filters left over from the first would hide its cards. Any
@@ -187,7 +187,7 @@ export function startApp(): () => void {
 	}
 
 	function renderTimeline(view: ProjectTimelineView): void {
-		shown = true;
+		contentShown = true;
 		if (root) root.innerHTML = timelineBody(view, options());
 	}
 
@@ -234,9 +234,6 @@ export function startApp(): () => void {
 	const hostDeclined = (result: unknown): boolean =>
 		isRecord(result) && result.isError === true;
 
-	/** Show the outcome of a host request beside the control that started it.
-	 * The frame can be taller than the visible chat, so a page-level toast could
-	 * land off-screen; next to the button is where the user is looking. */
 	// One note per control, so two requests from the same card (Ask and
 	// Repository) never clear each other's status.
 	const notes = new WeakMap<HTMLElement, HTMLElement>();
@@ -247,6 +244,9 @@ export function startApp(): () => void {
 		notes.delete(anchor);
 	}
 
+	/** Show the outcome of a host request beside the control that started it.
+	 * The frame can be taller than the visible chat, so a page-level toast could
+	 * land off-screen; next to the button is where the user is looking. */
 	function note(
 		anchor: HTMLElement,
 		text: string,
@@ -424,7 +424,8 @@ export function startApp(): () => void {
 		// No timeout here either, but a host that is slow to answer the handshake
 		// gets a visible status instead of an indefinite "Loading…".
 		slowInit = setTimeout(() => {
-			if (!shown) setStatus("Still waiting for the host to start the app…");
+			if (!contentShown)
+				setStatus("Still waiting for the host to start the app…");
 		}, SLOW_MS);
 		request("ui/initialize", {
 			appInfo: APP_INFO,
