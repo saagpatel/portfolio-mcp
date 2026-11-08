@@ -47,8 +47,7 @@ const omit = (value, keys) =>
 const KNOWN = ["index", "documents", "projects", "repoProfiles", "operant"];
 
 /** Each section is a keyed object compared entry by entry. The index's and the
- * repo-profile index's own lists mirror their keyed sections, so they are left
- * out rather than reported twice. */
+ * repo-profile index's own lists are compared separately, in LIST_SECTIONS. */
 const SECTIONS = [
 	{
 		label: "Documents",
@@ -70,6 +69,27 @@ const SECTIONS = [
 	{ label: "OPERANT figures", get: (c) => c.operant?.figures },
 	{ label: "OPERANT profile fields", get: (c) => c.operant?.profiles },
 	{ label: "Other top-level sections", get: (c) => omit(c, KNOWN) },
+];
+
+/** Index lists that MCP list responses serve, in order. The generator does not
+ * make them mirror their keyed records, so each is compared by id, field and
+ * order. A change that exactly mirrors the keyed record's (same field, same
+ * before and after) is already reported there and is not repeated. */
+const LIST_SECTIONS = [
+	{
+		label: "Index document list",
+		list: (c) => c.index?.documents,
+		id: (r) => r?.id,
+		mirror: (c) => c.documents,
+		title: (r) => r?.title,
+	},
+	{
+		label: "Repo profile index list",
+		list: (c) => c.repoProfiles?.index?.profiles,
+		id: (r) => r?.repo_id,
+		mirror: (c) => c.repoProfiles?.profiles,
+		title: (r) => r?.display_name,
+	},
 ];
 
 /** A short display of a scalar, or null when it is too long or not a scalar. */
@@ -98,25 +118,73 @@ function entryChange(before, after) {
 	return { fields, value: null };
 }
 
+/** Own keys only: a key such as "constructor" is data, not Object.prototype. */
+const has = (object, key) => isObject(object) && Object.hasOwn(object, key);
+
 function diffKeyed(before, after, title) {
 	const a = isObject(before) ? before : {};
 	const b = isObject(after) ? after : {};
 	const titled = (key, entry) => ({ key, title: title?.(entry) ?? null });
 	return {
 		added: Object.keys(b)
-			.filter((key) => !(key in a))
+			.filter((key) => !has(a, key))
 			.map((key) => titled(key, b[key])),
 		removed: Object.keys(a)
-			.filter((key) => !(key in b))
+			.filter((key) => !has(b, key))
 			.map((key) => titled(key, a[key])),
 		changed: Object.keys(b)
-			.filter((key) => key in a && !same(a[key], b[key]))
+			.filter((key) => has(a, key) && !same(a[key], b[key]))
 			.map((key) => ({
 				...titled(key, b[key]),
 				...entryChange(a[key], b[key]),
 			})),
 	};
 }
+
+const asList = (value) => (Array.isArray(value) ? value : []);
+
+function diffList(section, before, after) {
+	const ids = (list) => asList(list).map((r) => String(section.id(r)));
+	const keyBy = (list) =>
+		Object.fromEntries(asList(list).map((r) => [String(section.id(r)), r]));
+	const lb = keyBy(section.list(before));
+	const la = keyBy(section.list(after));
+	const kb = section.mirror(before);
+	const ka = section.mirror(after);
+	const mirrored = (key, field) =>
+		same(lb[key]?.[field], kb?.[key]?.[field]) &&
+		same(la[key]?.[field], ka?.[key]?.[field]);
+	const diff = diffKeyed(lb, la, section.title);
+	const added = diff.added.filter(
+		({ key }) =>
+			!(
+				has(ka, key) &&
+				!has(kb, key) &&
+				Object.keys(la[key] ?? {}).every((field) =>
+					same(la[key][field], ka[key][field]),
+				)
+			),
+	);
+	const removed = diff.removed.filter(
+		({ key }) => !(has(kb, key) && !has(ka, key)),
+	);
+	const changed = diff.changed
+		.map((entry) => ({
+			...entry,
+			fields: entry.fields.filter((f) => !mirrored(entry.key, f.name)),
+		}))
+		.filter((entry) => entry.value || entry.fields.length > 0);
+	// Order of the entries present on both sides; additions and removals alone
+	// do not count as a reorder.
+	const order = !same(
+		ids(section.list(before)).filter((key) => has(la, key)),
+		ids(section.list(after)).filter((key) => has(lb, key)),
+	);
+	return { added, removed, changed, order };
+}
+
+const hasChange = (s) =>
+	s.order || s.added.length + s.removed.length + s.changed.length > 0;
 
 /** Structured summary of the change from one corpus to another. */
 export function summarize(before, after) {
@@ -125,10 +193,17 @@ export function summarize(before, after) {
 			before: Object.keys(before.documents ?? {}).length,
 			after: Object.keys(after.documents ?? {}).length,
 		},
-		sections: SECTIONS.map((section) => ({
-			label: section.label,
-			...diffKeyed(section.get(before), section.get(after), section.title),
-		})).filter((s) => s.added.length + s.removed.length + s.changed.length > 0),
+		sections: [
+			...SECTIONS.map((section) => ({
+				label: section.label,
+				order: false,
+				...diffKeyed(section.get(before), section.get(after), section.title),
+			})),
+			...LIST_SECTIONS.map((section) => ({
+				label: section.label,
+				...diffList(section, before, after),
+			})),
+		].filter(hasChange),
 	};
 }
 
@@ -171,8 +246,14 @@ export function render(summary, sizes) {
 			`${section.added.length} added`,
 			`${section.removed.length} removed`,
 			`${section.changed.length} changed`,
+			...(section.order ? ["order changed"] : []),
 		].join(", ");
 		lines.push(`### ${section.label} (${counts})`, "");
+		if (section.order) {
+			lines.push(
+				"- order changed: a limited list response can return other entries",
+			);
+		}
 		const entries = [
 			...section.added.map((e) => entryLine("added", e)),
 			...section.removed.map((e) => entryLine("removed", e)),

@@ -133,8 +133,73 @@ describe("corpus-diff re-bake summary", () => {
 			"### OPERANT figures (1 added, 0 removed, 0 changed)",
 		);
 		expect(out).toContain("- added `demo`");
-		// The index's document list mirrors documents; it is not reported twice.
-		expect(out).not.toContain("- changed `documents`");
+		// The new document's index record mirrors it exactly: reported once.
+		expect(out).not.toContain("Index document list");
+	});
+
+	it("does not repeat a document change its index record mirrors", () => {
+		const before = corpus([doc("writing/a")]);
+		const after = corpus([doc("writing/a", { title: "Renamed" })]);
+		const out = render(summarize(before, after));
+		expect(out).toContain("- changed `writing/a` Renamed: `title`");
+		expect(out).not.toContain("Index document list");
+	});
+
+	it("reports an index-only change to a document record", () => {
+		const before = corpus([doc("writing/a")]);
+		const after = structuredClone(before);
+		after.index.documents[0].title = "Index-only title";
+		const out = render(summarize(before, after));
+		expect(out).not.toContain("No content change.");
+		expect(out).toContain(
+			"### Index document list (0 added, 0 removed, 1 changed)",
+		);
+		expect(out).toContain(
+			'- changed `writing/a` Index-only title: `title` "Title of writing/a" → "Index-only title"',
+		);
+	});
+
+	it("reports a reordered index list", () => {
+		const before = corpus([doc("writing/a"), doc("writing/b")]);
+		const after = structuredClone(before);
+		after.index.documents.reverse();
+		const out = render(summarize(before, after));
+		expect(out).toContain(
+			"### Index document list (0 added, 0 removed, 0 changed, order changed)",
+		);
+	});
+
+	it("reports a repo-profile index change the profile does not mirror", () => {
+		const profiles = (status) => ({
+			repoProfiles: {
+				index: {
+					profile_count: 1,
+					profiles: [
+						{ repo_id: "r", display_name: "R", freshness_status: status },
+					],
+				},
+				profiles: { r: { repo_id: "r", display_name: "R" } },
+			},
+		});
+		const out = render(
+			summarize(corpus([], profiles("fresh")), corpus([], profiles("stale"))),
+		);
+		expect(out).toContain(
+			'- changed `r` R: `freshness_status` "fresh" → "stale"',
+		);
+	});
+
+	it("treats keys like constructor as data, not Object.prototype", () => {
+		const before = corpus([], { operant: { profiles: {}, figures: {} } });
+		const after = corpus([], {
+			operant: { profiles: {}, figures: { constructor: { n: 1 } } },
+		});
+		expect(render(summarize(before, after))).toContain(
+			"### OPERANT figures (1 added, 0 removed, 0 changed)",
+		);
+		expect(render(summarize(after, before))).toContain(
+			"### OPERANT figures (0 added, 1 removed, 0 changed)",
+		);
 	});
 
 	it("names a changed OPERANT figure so a re-bake that reshapes it is visible", () => {

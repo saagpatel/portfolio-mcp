@@ -71,6 +71,10 @@ jobs:
             echo "src/corpus.generated.ts is unchanged; nothing to summarize."
             exit 0
           fi
+          if ! git cat-file -e "$base:src/corpus.generated.ts" 2>/dev/null; then
+            echo "No corpus at the merge base; nothing to compare."
+            exit 0
+          fi
           git show "$base:src/corpus.generated.ts" > "$RUNNER_TEMP/corpus.base.ts"
           node scripts/corpus-diff.mjs "$RUNNER_TEMP/corpus.base.ts" src/corpus.generated.ts \
             | tee -a "$GITHUB_STEP_SUMMARY"
