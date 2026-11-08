@@ -4,7 +4,10 @@
 
 import type {
 	ArchiveSummary,
+	DemoView,
 	GalleryCard,
+	InterleavingDemoView,
+	MuseumDemoView,
 	OperantDecisionRow,
 	OperantLabel,
 	OperantScenario,
@@ -475,4 +478,329 @@ export function operantBody(view: OperantView, state: OperantState): string {
 <aside class="op-caveat" aria-label="How to read these numbers"><p><strong>${esc(view.meta.claim)}</strong></p><details><summary>Research integrity</summary><p>${esc(view.caveat)}</p></details></aside>
 <div class="chips op-tabs" role="group" aria-label="Section">${tab("profiles", "Calibration profiles")}${tab("demo", "Try it yourself")}</div>
 ${state.tab === "demo" ? demoTab(view, state) : profilesTab(view)}`;
+}
+
+// ---- playable demos: the Interleaving Explorer ----
+
+export type IlMode = "warn" | "enforce";
+type Writer = "A" | "B";
+
+/** The six schedules of two writers that each read, then write. In a schedule
+ * a writer's first letter is its read and its second letter is its write. */
+export const SCHEDULES = [
+	"AABB",
+	"ABAB",
+	"ABBA",
+	"BAAB",
+	"BABA",
+	"BBAA",
+] as const;
+export type Schedule = (typeof SCHEDULES)[number];
+
+export type IlReceipt = {
+	writer: Writer;
+	kind: "blind-refused" | "blind-overwrite" | "cas-conflict";
+	text: string;
+};
+
+export type IlStep = {
+	writer: Writer;
+	op: "read" | "write";
+	text: string;
+	row: { content: string; version: number };
+	receipt: IlReceipt | null;
+};
+
+export type IlRun = {
+	steps: IlStep[];
+	outcome: "lost-update" | "rejected" | "clean";
+	told: Record<Writer, boolean | null>; // what each writer was told: ok?
+	lost: boolean;
+};
+
+/** FNV-1a 32-bit, as a short stand-in for the receipt's content hash. */
+export function contentHash(text: string): string {
+	let h = 0x811c9dc5;
+	for (let i = 0; i < text.length; i++) {
+		h ^= text.charCodeAt(i);
+		h = Math.imul(h, 0x01000193) >>> 0;
+	}
+	return h.toString(16).padStart(8, "0");
+}
+
+/** Run one schedule. Writer A writes blind (no version); writer B does a
+ * compare-and-swap on the version it read. Warn mode accepts the blind write
+ * (and files a receipt with the displaced content's hash); enforce refuses it.
+ * A lost update is a blind write that replaces a version its writer never read. */
+export function simulateSchedule(
+	schedule: Schedule,
+	mode: IlMode,
+	initial: { content: string; version: number },
+): IlRun {
+	const row = { ...initial };
+	const read: Record<Writer, number | null> = { A: null, B: null };
+	const told: Record<Writer, boolean | null> = { A: null, B: null };
+	const steps: IlStep[] = [];
+	let lost = false;
+	let rejected = false;
+	for (const writer of [...schedule] as Writer[]) {
+		let receipt: IlReceipt | null = null;
+		let text: string;
+		let op: "read" | "write";
+		if (read[writer] === null) {
+			op = "read";
+			read[writer] = row.version;
+			text = `${writer} reads version ${row.version}`;
+		} else if (writer === "A") {
+			op = "write";
+			if (mode === "enforce") {
+				told.A = false;
+				rejected = true;
+				text = "A's blind write is refused: no version given";
+				receipt = {
+					writer,
+					kind: "blind-refused",
+					text: "Refused: write carried no expected version (enforce mode).",
+				};
+			} else {
+				const unseen = row.version !== read.A;
+				const displaced = row.content;
+				lost ||= unseen;
+				row.content = "Writer A's update";
+				row.version += 1;
+				told.A = true;
+				text = unseen
+					? `A's blind write replaces version ${row.version - 1}, which A never read`
+					: `A's blind write lands on version ${row.version - 1}`;
+				receipt = {
+					writer,
+					kind: "blind-overwrite",
+					text: `Accepted blind overwrite (warn mode); displaced content hash ${contentHash(displaced)}${unseen ? ", committed work A never saw" : ""}.`,
+				};
+			}
+		} else {
+			op = "write";
+			if (row.version === read.B) {
+				row.content = "Writer B's update";
+				row.version += 1;
+				told.B = true;
+				text = `B's CAS write commits version ${row.version}`;
+			} else {
+				told.B = false;
+				rejected = true;
+				text = `B's CAS write is rejected: expected version ${read.B}, found ${row.version}`;
+				receipt = {
+					writer,
+					kind: "cas-conflict",
+					text: `Conflict: expected version ${read.B}, row is at version ${row.version}.`,
+				};
+			}
+		}
+		steps.push({ writer, op, text, row: { ...row }, receipt });
+	}
+	return {
+		steps,
+		lost,
+		told,
+		outcome: lost ? "lost-update" : rejected ? "rejected" : "clean",
+	};
+}
+
+/** Chance of each schedule when a fair coin picks which runnable writer goes
+ * next: every step with both writers runnable halves the probability. */
+export function scheduleProbability(schedule: Schedule): number {
+	let p = 1;
+	const left: Record<Writer, number> = { A: 2, B: 2 };
+	for (const w of [...schedule] as Writer[]) {
+		if (left.A > 0 && left.B > 0) p /= 2;
+		left[w] -= 1;
+	}
+	return p;
+}
+
+export type IlState = { schedule: Schedule; mode: IlMode; step: number };
+
+const OUTCOME_LABEL: Record<IlRun["outcome"], string> = {
+	"lost-update": "Lost update",
+	rejected: "Honest rejection",
+	clean: "Clean",
+};
+
+const opsLabel = (schedule: Schedule): string => {
+	const seen = new Set<string>();
+	return ([...schedule] as Writer[])
+		.map((w) => {
+			const op = seen.has(w) ? "w" : "r";
+			seen.add(w);
+			return `${w}.${op}`;
+		})
+		.join(" → ");
+};
+
+function interleavingBody(view: InterleavingDemoView, state: IlState): string {
+	const run = simulateSchedule(state.schedule, state.mode, view.initial);
+	const shown = run.steps.slice(0, state.step);
+	const row = shown[shown.length - 1]?.row ?? view.initial;
+	const writerPanel = (w: Writer, label: string, plan: string): string => {
+		const mine = shown.filter((s) => s.writer === w);
+		const readStep = mine.find((s) => s.op === "read");
+		const writeStep = mine.find((s) => s.op === "write");
+		const result = writeStep
+			? run.told[w] === null
+				? "–"
+				: run.told[w]
+					? "told ok: true"
+					: "rejected"
+			: "–";
+		return `<article class="card il-writer"><h3>${esc(label)}</h3><p class="note">${esc(plan)}</p><dl class="op-stats">${stat("Read version", readStep ? String(readStep.row.version) : "–")}${stat("Result", result)}</dl></article>`;
+	};
+	const receipts = shown
+		.filter((s) => s.receipt)
+		.map(
+			(s) =>
+				`<li class="il-receipt"><span class="il-receipt-kind">${esc(s.receipt?.kind ?? "")}</span> ${esc(s.receipt?.text ?? "")}</li>`,
+		)
+		.join("");
+	const log = shown
+		.map(
+			(s, i) =>
+				`<li><span class="il-step-n">${i + 1}</span> ${esc(s.text)}</li>`,
+		)
+		.join("");
+	const done = state.step >= run.steps.length;
+	const banner = done
+		? `<div class="il-outcome il-${run.outcome}" role="status"><strong>${esc(OUTCOME_LABEL[run.outcome])}.</strong> ${
+				run.outcome === "lost-update"
+					? "Both writers were told ok, and B's committed work is gone."
+					: run.outcome === "rejected"
+						? "A write was refused and a receipt says why; nothing was lost."
+						: "Both writes landed in order; nothing was lost."
+			}</div>`
+		: "";
+	const chips = SCHEDULES.map(
+		(sch) =>
+			`<button type="button" class="chip" data-il-schedule="${sch}" aria-pressed="${sch === state.schedule}">${esc(opsLabel(sch))}</button>`,
+	).join("");
+	const modes = (["warn", "enforce"] as const)
+		.map(
+			(m) =>
+				`<button type="button" class="chip" data-il-mode="${m}" aria-pressed="${m === state.mode}">${m}</button>`,
+		)
+		.join("");
+	const table = SCHEDULES.map((sch) => {
+		const warn = simulateSchedule(sch, "warn", view.initial).outcome;
+		const enforce = simulateSchedule(sch, "enforce", view.initial).outcome;
+		return `<tr${sch === state.schedule ? ' class="is-current"' : ""}><th scope="row">${esc(opsLabel(sch))}</th><td class="il-${warn}">${esc(OUTCOME_LABEL[warn])}</td><td class="il-${enforce}">${esc(OUTCOME_LABEL[enforce])}</td><td>${esc(fmt(scheduleProbability(sch), 3))}</td></tr>`;
+	}).join("");
+	const lostChance = (m: IlMode): number =>
+		SCHEDULES.filter(
+			(sch) => simulateSchedule(sch, m, view.initial).lost,
+		).reduce((sum, sch) => sum + scheduleProbability(sch), 0);
+	return `<header class="head"><div><h1>${esc(view.title)}</h1>${view.intro[0] ? `<p class="sub">${esc(view.intro[0])}</p>` : ""}</div></header>
+${view.intro
+	.slice(1)
+	.map((p) => `<p class="op-plain">${esc(p)}</p>`)
+	.join("")}
+<div class="il-controls"><div class="chips" role="group" aria-label="Schedule">${chips}</div><div class="chips" role="group" aria-label="Mode">${modes}</div></div>
+<div class="il-grid">
+${writerPanel("A", "Writer A · blind write", "read → write (no version)")}
+${writerPanel("B", "Writer B · CAS write", "read → write if version matches")}
+<article class="card il-row"><h3>context_sections · one row</h3><dl class="op-stats">${stat("Content", `"${row.content}"`)}${stat("Version", String(row.version))}</dl></article>
+</div>
+<div class="op-actions il-actions"><button type="button" class="op-next" data-il-step="next"${done ? " disabled" : ""}>Step</button><button type="button" class="op-next il-secondary" data-il-step="all"${done ? " disabled" : ""}>Run all</button><button type="button" class="op-next il-secondary" data-il-step="reset">Reset</button><span class="shown">Step ${state.step} of ${run.steps.length}</span></div>
+${banner}
+${log ? `<ol class="il-log">${log}</ol>` : ""}
+${receipts ? `<h2 class="op-h2">Receipts</h2><ul class="il-receipts">${receipts}</ul>` : ""}
+${view.receipt ? `<p class="note">${esc(view.receipt)}</p>` : ""}
+<h2 class="op-h2">All six interleavings</h2>
+<table class="il-table"><thead><tr><th scope="col">Schedule</th><th scope="col">warn</th><th scope="col">enforce</th><th scope="col">Fair-coin chance</th></tr></thead><tbody>${table}</tbody></table>
+<p class="note">Under a fair coin choosing who goes next at this read/write granularity, warn mode loses B's update in ${esc(fmt(lostChance("warn") * 100, 0))}% of runs and enforce mode in ${esc(fmt(lostChance("enforce") * 100, 0))}%.${view.sweep ? ` ${esc(view.sweep)}` : ""}</p>
+${view.small_print ? `<p class="note">${esc(view.small_print)}</p>` : ""}
+<div class="actions op-links"><a class="action" href="${esc(view.url)}" data-open-link="${esc(view.url)}" target="_blank" rel="noopener noreferrer">Original page ↗</a></div>`;
+}
+
+// ---- playable demos: the Agent Failure Museum ----
+
+export type MuseumState = {
+	round: number; // exhibits.length means the summary
+	answers: Record<number, number>; // round -> chosen exhibit index
+};
+
+/** The three controls offered for round i: the right one and two others,
+ * chosen and ordered deterministically so the game is reproducible. */
+export function museumOptions(count: number, round: number): number[] {
+	if (count < 3) return [];
+	const a = (round + 1) % count;
+	const b =
+		(round + 3) % count === round ? (round + 2) % count : (round + 3) % count;
+	const options = [round, a, b === a ? (round + 2) % count : b];
+	const shift = round % 3;
+	return [...options.slice(shift), ...options.slice(0, shift)];
+}
+
+/** "Name: details" -> "Name"; otherwise the first sentence, trimmed. */
+export function controlName(control: string): string {
+	const colon = control.indexOf(":");
+	if (colon > 0 && colon <= 60) return control.slice(0, colon);
+	const sentence = control.split(/(?<=\.)\s/)[0] ?? control;
+	return sentence.length > 90 ? `${sentence.slice(0, 87)}…` : sentence;
+}
+
+function museumBody(view: MuseumDemoView, state: MuseumState): string {
+	const n = view.exhibits.length;
+	const correct = Object.entries(state.answers).filter(
+		([round, choice]) => Number(round) === choice,
+	).length;
+	const answered = Object.keys(state.answers).length;
+	const score = `<dl class="stats op-score" aria-label="Your score">${stat("Matched", `${correct}/${answered}`)}${stat("Exhibits", String(n))}</dl>`;
+	const head = `<header class="head"><div><h1>${esc(view.title)}</h1>${view.intro[0] ? `<p class="sub">${esc(view.intro[0])}</p>` : ""}</div></header>
+${view.fixture_rule ? `<aside class="op-caveat"><p>${esc(view.fixture_rule)}</p></aside>` : ""}`;
+	if (state.round >= n) {
+		const review = view.exhibits
+			.map((e, i) => {
+				const ok = state.answers[i] === i;
+				return `<li class="${ok ? "ok" : "miss"}"><span class="op-verdict">${ok ? "✓" : "✗"}</span> <strong>${esc(e.title)}</strong>: ${esc(controlName(e.control))}</li>`;
+			})
+			.join("");
+		return `${head}<section class="op-demo"><h2 class="op-h2">You matched ${correct} of ${n}</h2>${score}<ol class="op-review">${review}</ol><div class="op-actions"><button type="button" class="op-next" data-mu-restart="1">Play again</button></div><div class="actions op-links"><a class="action" href="${esc(view.url)}" data-open-link="${esc(view.url)}" target="_blank" rel="noopener noreferrer">The museum ↗</a></div></section>`;
+	}
+	const e = view.exhibits[state.round];
+	if (!e) return head;
+	const chosen = state.answers[state.round];
+	const answered1 = chosen !== undefined;
+	const options = museumOptions(n, state.round)
+		.map((idx) => {
+			const ex = view.exhibits[idx];
+			if (!ex) return "";
+			const cls = answered1
+				? idx === state.round
+					? " is-expected"
+					: idx === chosen
+						? " is-wrong"
+						: ""
+				: "";
+			const picked = idx === chosen;
+			return `<button type="button" class="op-choice${cls}${picked ? " is-picked" : ""}" data-mu-choice="${idx}" aria-pressed="${picked}"${answered1 ? " disabled" : ""}><span class="op-code">${esc(controlName(ex.control))}</span>${picked ? '<span class="op-pick">Your choice</span>' : ""}</button>`;
+		})
+		.join("");
+	const verdict = answered1
+		? `<div class="op-result ${chosen === state.round ? "ok" : "miss"}" role="status" id="mu-verdict"><p><strong>${chosen === state.round ? "Caught." : "Not this one."}</strong> ${esc(e.control)}</p><p><strong>Still uncertain:</strong> ${esc(e.uncertain)}</p></div>
+<div class="op-actions"><button type="button" class="op-next" data-mu-next="1" aria-describedby="mu-verdict">${state.round + 1 < n ? "Next exhibit" : "See your score"}</button></div>`
+		: "";
+	return `${head}<section class="op-demo">${score}
+<p class="shown">Exhibit ${state.round + 1} of ${n}</p>
+<article class="card op-case">${e.category ? `<span class="op-channel">${esc(e.category)}</span>` : ""}<h3>${esc(e.title)}</h3><p class="op-scenario">${esc(e.failure)}</p><p class="note"><strong>Why it is tempting:</strong> ${esc(e.tempting)}</p><p class="note"><strong>What goes wrong:</strong> ${esc(e.wrong)}</p></article>
+<p class="op-plain">Which control catches it?</p>
+<div class="op-choices mu-choices" role="group" aria-label="Controls">${options}</div>
+${verdict}
+</section>`;
+}
+
+export type DemoState = { il: IlState; museum: MuseumState };
+
+export function demoBody(view: DemoView, state: DemoState): string {
+	if (!view.available) return `<p class="empty">${esc(view.note)}</p>`;
+	return view.demo === "interleaving"
+		? interleavingBody(view, state.il)
+		: museumBody(view, state.museum);
 }

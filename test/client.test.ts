@@ -4,6 +4,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
+	DemoView,
 	GalleryCard,
 	OperantView,
 	ProjectGalleryView,
@@ -460,6 +461,82 @@ describe("MCP App client", () => {
 		click('[data-operant-tab="profiles"]');
 		expect(app()?.textContent).toContain("Historical decision rows");
 		expect(focused()?.dataset.operantTab).toBe("profiles");
+	});
+
+	it("plays the interleaving demo: lost update in warn, refusal in enforce", async () => {
+		const view: DemoView = {
+			view: "demo",
+			demo: "interleaving",
+			available: true,
+			title: "Interleaving",
+			url: "https://x.dev/interleaving-explorer",
+			intro: ["Two agents."],
+			receipt: null,
+			sweep: null,
+			small_print: null,
+			initial: { content: "baseline content", version: 1 },
+		};
+		const { fromHost } = await boot();
+		fromHost(toolResult(view));
+		const click = (selector: string) =>
+			document.querySelector<HTMLElement>(selector)?.click();
+		const focused = () => document.activeElement as HTMLElement | null;
+		// Default schedule is the lost-update one (A.r, B.r, B.w, A.w) in warn.
+		click('[data-il-step="next"]');
+		expect(app()?.textContent).toContain("Step 1 of 4");
+		expect(focused()?.dataset.ilStep).toBe("next");
+		click('[data-il-step="all"]');
+		expect(app()?.textContent).toContain("Lost update.");
+		expect(document.querySelectorAll(".il-receipt")).toHaveLength(1);
+		click('[data-il-mode="enforce"]');
+		expect(app()?.textContent).toContain("Step 0 of 4");
+		expect(focused()?.dataset.ilMode).toBe("enforce");
+		click('[data-il-step="all"]');
+		expect(app()?.textContent).toContain("Honest rejection.");
+		click('[data-il-schedule="AABB"]');
+		expect(
+			document
+				.querySelector('[data-il-schedule="AABB"]')
+				?.getAttribute("aria-pressed"),
+		).toBe("true");
+	});
+
+	it("plays the failure museum: match, verdict, next, summary", async () => {
+		const exhibit = (n: number) => ({
+			category: "Tools",
+			title: `Exhibit ${n}`,
+			failure: `Failure ${n}`,
+			tempting: "t",
+			wrong: "w",
+			control: `Control ${n}: detail`,
+			uncertain: "u",
+		});
+		const view: DemoView = {
+			view: "demo",
+			demo: "failure-museum",
+			available: true,
+			title: "Museum",
+			url: "https://x.dev/agent-failure-museum",
+			intro: ["Synthetic failures."],
+			fixture_rule: null,
+			exhibits: [exhibit(0), exhibit(1), exhibit(2)],
+		};
+		const { fromHost } = await boot();
+		fromHost(toolResult(view));
+		const click = (selector: string) =>
+			document.querySelector<HTMLElement>(selector)?.click();
+		const focused = () => document.activeElement as HTMLElement | null;
+		click('[data-mu-choice="0"]');
+		expect(app()?.textContent).toContain("Caught.");
+		expect(focused()?.dataset.muNext).toBe("1");
+		click("[data-mu-next]");
+		click('[data-mu-choice="0"]'); // wrong for exhibit 1
+		expect(app()?.textContent).toContain("Not this one.");
+		click("[data-mu-next]");
+		click('[data-mu-choice="2"]');
+		click("[data-mu-next]");
+		expect(app()?.textContent).toContain("You matched 2 of 3");
+		expect(focused()?.dataset.muRestart).toBe("1");
 	});
 
 	describe("host request feedback", () => {

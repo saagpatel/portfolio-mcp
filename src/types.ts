@@ -307,3 +307,48 @@ export type OperantView =
 			links: { repo: string | null; scorecard: string | null };
 	  }
 	| { view: "operant"; available: false; note: string };
+
+// ---- playable demos ----
+// Rebuilt from the public corpus pages that fully specify them. Text is taken
+// from the page bodies; the mechanics are the ones those pages describe.
+
+export type DemoName = "interleaving" | "failure-museum";
+
+export type InterleavingDemoView = {
+	view: "demo";
+	demo: "interleaving";
+	available: true;
+	title: string;
+	url: string;
+	intro: string[];
+	receipt: string | null; // the page's "The receipt" paragraph
+	sweep: string | null; // the page's real-system sweep finding
+	small_print: string | null;
+	initial: { content: string; version: number };
+};
+
+export type MuseumExhibit = {
+	category: string | null;
+	title: string;
+	failure: string;
+	tempting: string;
+	wrong: string;
+	control: string;
+	uncertain: string;
+};
+
+export type MuseumDemoView = {
+	view: "demo";
+	demo: "failure-museum";
+	available: true;
+	title: string;
+	url: string;
+	intro: string[];
+	fixture_rule: string | null;
+	exhibits: MuseumExhibit[];
+};
+
+export type DemoView =
+	| InterleavingDemoView
+	| MuseumDemoView
+	| { view: "demo"; demo: DemoName; available: false; note: string };

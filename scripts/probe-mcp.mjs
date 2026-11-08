@@ -17,7 +17,7 @@ import {
 
 const DEFAULT_ENDPOINT = "https://portfolio-mcp.saagar210.workers.dev/mcp";
 const SERVER_NAME = "saagarpatel-portfolio";
-const EXPECTED_TOOLS = [
+export const EXPECTED_TOOLS = [
 	"get_document",
 	"get_operant_results",
 	"get_profile",
@@ -25,6 +25,7 @@ const EXPECTED_TOOLS = [
 	"list_corpus",
 	"list_projects",
 	"list_repo_profiles",
+	"play_demo",
 	"search",
 	"show_operant_results",
 	"show_project_gallery",

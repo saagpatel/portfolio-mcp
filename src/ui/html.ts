@@ -3,7 +3,7 @@
 
 import { APP_CSS, APP_SCRIPT } from "./app.generated";
 
-export type AppView = "gallery" | "timeline" | "operant";
+export type AppView = "gallery" | "timeline" | "operant" | "demos";
 
 export const APP_MIME_TYPE = "text/html;profile=mcp-app";
 
@@ -11,12 +11,14 @@ const TITLES: Record<AppView, string> = {
 	gallery: "Project gallery",
 	timeline: "Project timeline",
 	operant: "OPERANT results",
+	demos: "Portfolio demos",
 };
 
 const LOADING: Record<AppView, string> = {
 	gallery: "Loading the project gallery…",
 	timeline: "Loading the project timeline…",
 	operant: "Loading OPERANT results…",
+	demos: "Loading the demo…",
 };
 
 /** Keep inline code from closing its own <script>/<style> element early. */
