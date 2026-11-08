@@ -3,6 +3,7 @@
 
 import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -16,7 +17,7 @@ const PIN = {
 };
 
 async function workspace() {
-	const root = await mkdtemp(join(resolve("."), ".corpus-source-test-"));
+	const root = await mkdtemp(join(tmpdir(), "corpus-source-test-"));
 	temporaryDirs.push(root);
 	const source = join(root, "source");
 	await mkdir(join(source, "corpus/writing"), { recursive: true });

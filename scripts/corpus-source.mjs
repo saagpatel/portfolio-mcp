@@ -40,9 +40,12 @@ const sourceDirArg = option("--source-dir");
 const COMMIT = /^[0-9a-f]{40}$/;
 const REPOSITORY = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+$/;
 
+/** A check failure: thrown (not process.exit) so main()'s cleanup still runs
+ * and never leaves a checkout of the private source behind. */
+class CheckFailure extends Error {}
+
 function fail(message) {
-	console.error(`corpus-source: ${message}`);
-	process.exit(1);
+	throw new CheckFailure(message);
 }
 
 function run(command, commandArgs, options = {}, hint = "") {
@@ -83,9 +86,12 @@ function gitEnv(pin) {
 	const token = process.env.PORTFOLIO_INDEX_TOKEN;
 	if (token) {
 		const basic = Buffer.from(`x-access-token:${token}`).toString("base64");
-		env.GIT_CONFIG_COUNT = "1";
-		env.GIT_CONFIG_KEY_0 = `http.${new URL(pin.repository).origin}/.extraheader`;
-		env.GIT_CONFIG_VALUE_0 = `AUTHORIZATION: basic ${basic}`;
+		// Append to any GIT_CONFIG_* entries the caller already set.
+		const index = Number.parseInt(env.GIT_CONFIG_COUNT ?? "0", 10) || 0;
+		env[`GIT_CONFIG_KEY_${index}`] =
+			`http.${new URL(pin.repository).origin}/.extraheader`;
+		env[`GIT_CONFIG_VALUE_${index}`] = `AUTHORIZATION: basic ${basic}`;
+		env.GIT_CONFIG_COUNT = String(index + 1);
 	}
 	return env;
 }
@@ -166,4 +172,10 @@ async function main() {
 	}
 }
 
-await main();
+try {
+	await main();
+} catch (error) {
+	if (!(error instanceof CheckFailure)) throw error;
+	console.error(`corpus-source: ${error.message}`);
+	process.exitCode = 1;
+}

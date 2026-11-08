@@ -66,7 +66,7 @@ Documents are also exposed as **Resources** (`portfolio://essays/{slug}`, `portf
 
 ## Retrieval
 
-BM25 over a baked index (no embeddings in v1 — the committed corpus contains 167 docs and the
+BM25 over a baked index (no embeddings in v1 — the committed corpus is well under a thousand docs and the
 calling LLM supplies the semantics). Titles are boosted. Embeddings are a measured
 Phase 3 upgrade, added only if retrieval quality proves insufficient.
 
@@ -141,9 +141,13 @@ it is excluded from two-key review and lands on the rebuild-and-hash check inste
 1. Generator, check, and other source changes go through the normal two-key
    review first.
 2. The re-bake follows in its own PR: the pin bump in `corpus.source.json` plus
-   the regenerated corpus from `npm run corpus:rebake`, and nothing else. It
-   merges only on a green `corpus-rebuild` check, pinned to the checked head with
+   the regenerated corpus from `npm run corpus:rebake`, and nothing else (CI
+   fails a PR that changes the corpus alongside any other file). It merges only
+   on a green `corpus-rebuild` check, pinned to the checked head with
    `gh pr merge --match-head-commit <sha>`.
+
+Dependabot PRs skip `corpus-rebuild`: they receive no Actions secrets, and their
+dependency bumps cannot change the corpus.
 
 Inspect either transport with the MCP inspector:
 
