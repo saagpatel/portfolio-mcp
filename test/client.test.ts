@@ -2,7 +2,7 @@
 // The iframe side of the MCP Apps protocol, driven the way a host drives it:
 // postMessage JSON-RPC from window.parent. Type-checked by tsconfig.ui.json.
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GalleryCard, ProjectGalleryView } from "../src/types";
 import { startApp } from "../src/ui/client";
 
@@ -259,5 +259,74 @@ describe("MCP App client", () => {
 		if (appRoot) appRoot.innerHTML = "<p>replacement</p>";
 		await flush();
 		expect(app()?.textContent).toBe("replacement");
+	});
+
+	describe("host request feedback", () => {
+		/** Click Ask on a one-card gallery and return the ui/message request. */
+		async function clickAsk(caps: Record<string, unknown> = { message: {} }) {
+			const host = await boot(caps);
+			host.fromHost(toolResult(galleryView([card("ink", null)])));
+			document.querySelector<HTMLElement>("[data-ask]")?.click();
+			const request = host.sent.find((m) => m.method === "ui/message");
+			if (request?.id === undefined) throw new Error("no ui/message sent");
+			return { ...host, request };
+		}
+		const noteText = () =>
+			document.querySelector(".note-inline")?.textContent ?? "";
+
+		it("confirms a sent question, since hosts may stage it in the chat box", async () => {
+			const { request, fromHost } = await clickAsk();
+			fromHost({ jsonrpc: "2.0", id: request.id, result: {} });
+			await flush();
+			expect(noteText()).toBe("Sent — check the chat box.");
+		});
+
+		it("says so when the host declines the question", async () => {
+			const { request, fromHost } = await clickAsk();
+			fromHost({ jsonrpc: "2.0", id: request.id, result: { isError: true } });
+			await flush();
+			expect(noteText()).toBe("The host declined to post the question.");
+		});
+
+		it("shows a JSON-RPC error from the host", async () => {
+			const { request, fromHost } = await clickAsk();
+			fromHost({
+				jsonrpc: "2.0",
+				id: request.id,
+				error: { code: -32000, message: "not allowed" },
+			});
+			await flush();
+			expect(noteText()).toBe("Couldn't ask in the chat: not allowed (-32000)");
+		});
+
+		it("gives up on a host that never answers", async () => {
+			await clickAsk();
+			vi.useFakeTimers();
+			try {
+				// The click above already started the 10 s request timer under real
+				// timers, so drive a fresh click under fake ones.
+				document.querySelector<HTMLElement>("[data-ask]")?.click();
+				await vi.advanceTimersByTimeAsync(10_001);
+				expect(noteText()).toBe(
+					"Couldn't ask in the chat: no response from the host",
+				);
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		it("reports a declined repository link", async () => {
+			const host = await boot({ openLinks: {} });
+			host.fromHost(toolResult(galleryView([card("ink", null)])));
+			document.querySelector<HTMLElement>("[data-open-link]")?.click();
+			const request = host.sent.find((m) => m.method === "ui/open-link");
+			host.fromHost({
+				jsonrpc: "2.0",
+				id: request?.id,
+				result: { isError: true },
+			});
+			await flush();
+			expect(noteText()).toBe("The host didn't open the link.");
+		});
 	});
 });
