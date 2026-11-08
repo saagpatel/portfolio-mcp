@@ -42,18 +42,27 @@ SSRF / exfil surface).
 | `get_operant_results` | Public, sanitized OPERANT calibration results (per-model OCS) |
 | `show_project_gallery` | Curated projects as gallery cards (MCP App); optional `status`, `lifecycle` |
 | `show_project_timeline` | Curated projects by last-active month, with archive lifecycle mix (MCP App) |
+| `show_operant_results` | OPERANT calibration-profile cards plus a playable demo scored with OCS (MCP App); optional `section` |
 
 ## MCP Apps
 
-`show_project_gallery` and `show_project_timeline` carry `_meta.ui.resourceUri`
-pointing at `ui://portfolio/project-gallery.html` and
-`ui://portfolio/project-timeline.html` (`text/html;profile=mcp-app`). Hosts that
+`show_project_gallery`, `show_project_timeline` and `show_operant_results` carry
+`_meta.ui.resourceUri` pointing at `ui://portfolio/project-gallery.html`,
+`ui://portfolio/project-timeline.html` and `ui://portfolio/operant-results.html`
+(`text/html;profile=mcp-app`). Hosts that
 support MCP Apps render them as interactive views in a sandboxed iframe; every
 host also gets the same object as `structuredContent` and as JSON text, so the
 data never depends on the UI. The apps are self-contained (inline script and
 styles, no network, no `csp` domains). Repository links go through
 `ui/open-link`, and "Ask about it" sends a `ui/message` only when the host
 advertises that capability.
+
+The OPERANT view is built from the baked public OPERANT figures only. Its cards
+keep the dataset's row order and carry its research-integrity caveat (the rows
+are historical calculations, not a leaderboard). The demo is the dataset's own
+six-case "operator's agent" exercise: the reader picks an action per case and is
+scored live with OCS = TPR - FPR, where withholding direct execution is the
+positive signal.
 
 The app client (`src/ui/client.ts`) speaks the `ui/*` postMessage protocol
 directly rather than through the ext-apps SDK. `npm run build:ui` bundles it with
