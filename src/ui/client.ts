@@ -31,6 +31,7 @@ const PROTOCOL_VERSION = "2026-01-26";
 // says it is waiting, so the button never looks silently dead.
 const SLOW_MS = 10_000;
 const NOTE_MS = 6_000;
+const WAITING_TEXT = "Waiting for the host…";
 const APP_INFO = { name: "portfolio-explorer", version: "0.1.0" };
 
 type JsonRpcMessage = {
@@ -76,6 +77,7 @@ export function startApp(): () => void {
 	let capabilities: HostCapabilities = {};
 	let nextId = 1;
 	let stopped = false;
+	let slowInit: ReturnType<typeof setTimeout> | undefined;
 	const pending = new Map<
 		string | number,
 		{ resolve: (v: unknown) => void; reject: (e: Error) => void }
@@ -252,10 +254,16 @@ export function startApp(): () => void {
 		params: unknown,
 	): Promise<unknown> {
 		const slow = setTimeout(
-			() => note(anchor, "Waiting for the host…", "ok", true),
+			() => note(anchor, WAITING_TEXT, "ok", true),
 			SLOW_MS,
 		);
-		return request(method, params).finally(() => clearTimeout(slow));
+		// Runs before the caller's handlers: drop the waiting note so a success
+		// that shows nothing (an opened link) does not leave it behind.
+		return request(method, params).finally(() => {
+			clearTimeout(slow);
+			const waiting = anchor.parentElement?.querySelector(".note-inline");
+			if (waiting?.textContent === WAITING_TEXT) waiting.remove();
+		});
 	}
 
 	function openLink(url: string, anchor: HTMLElement): void {
@@ -395,6 +403,13 @@ export function startApp(): () => void {
 			`This is the portfolio ${viewKind} app. It renders inside an MCP host that supports MCP Apps.`,
 		);
 	} else {
+		// No timeout here either, but a host that is slow to answer the handshake
+		// gets a visible status instead of an indefinite "Loading…".
+		slowInit = setTimeout(() => {
+			if (root?.querySelector(".loading")) {
+				setStatus("Still waiting for the host to start the app…");
+			}
+		}, SLOW_MS);
 		request("ui/initialize", {
 			appInfo: APP_INFO,
 			appCapabilities: { availableDisplayModes: ["inline"] },
@@ -409,6 +424,7 @@ export function startApp(): () => void {
 				}
 				notify("ui/notifications/initialized", {});
 			})
+			.finally(() => clearTimeout(slowInit))
 			.catch((error: unknown) => {
 				if (stopped) return; // stop() rejected the handshake; the DOM is no longer ours
 				console.error("ui/initialize failed", error);
@@ -423,6 +439,7 @@ export function startApp(): () => void {
 		document.removeEventListener("change", onChange);
 		window.removeEventListener("message", onMessage);
 		resizeObserver.disconnect();
+		clearTimeout(slowInit);
 		for (const waiter of pending.values())
 			waiter.reject(new Error("app stopped"));
 		pending.clear();

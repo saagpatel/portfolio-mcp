@@ -229,6 +229,40 @@ describe("MCP App client", () => {
 		expect(root.style.getPropertyValue("not-a-var")).toBe("");
 	});
 
+	it("shows a status while a slow host finishes the handshake", async () => {
+		document.body.innerHTML =
+			'<main id="app"><p class="loading">Loading…</p></main>';
+		const sent: Sent[] = [];
+		const parent = { postMessage: (m: Sent) => sent.push(m) };
+		Object.defineProperty(window, "parent", {
+			value: parent,
+			configurable: true,
+		});
+		vi.useFakeTimers();
+		try {
+			stop = startApp();
+			await vi.advanceTimersByTimeAsync(10_001);
+			expect(app()?.textContent).toContain("Still waiting for the host");
+			const init = sent.find((m) => m.method === "ui/initialize");
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						jsonrpc: "2.0",
+						id: init?.id,
+						result: { hostCapabilities: {}, hostContext: {} },
+					},
+					source: parent as unknown as MessageEventSource,
+				}),
+			);
+			await vi.advanceTimersByTimeAsync(0);
+			expect(
+				sent.some((m) => m.method === "ui/notifications/initialized"),
+			).toBe(true);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("shows a note and sends nothing when opened outside a host frame", () => {
 		document.body.innerHTML = '<main id="app"></main>';
 		expect(window.parent).toBe(window);
@@ -314,6 +348,23 @@ describe("MCP App client", () => {
 				host.fromHost({ jsonrpc: "2.0", id: request?.id, result: {} });
 				await vi.advanceTimersByTimeAsync(0);
 				expect(noteText()).toBe("Sent — check the chat box.");
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		it("clears the waiting note when a slow link opens successfully", async () => {
+			const host = await boot({ openLinks: {} });
+			host.fromHost(toolResult(galleryView([card("ink", null)])));
+			vi.useFakeTimers();
+			try {
+				document.querySelector<HTMLElement>("[data-open-link]")?.click();
+				await vi.advanceTimersByTimeAsync(10_001);
+				expect(noteText()).toBe("Waiting for the host…");
+				const request = host.sent.find((m) => m.method === "ui/open-link");
+				host.fromHost({ jsonrpc: "2.0", id: request?.id, result: {} });
+				await vi.advanceTimersByTimeAsync(0);
+				expect(document.querySelector(".note-inline")).toBeNull();
 			} finally {
 				vi.useRealTimers();
 			}
