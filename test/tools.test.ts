@@ -342,6 +342,15 @@ describe("app views", () => {
 		const archived = withProfiles.projectGallery({ status: "archived" });
 		expect(archived.cards.map((c) => c.slug)).toEqual(["ghostroutes"]);
 		expect(archived.filters).toEqual({ status: "archived", lifecycle: null });
+		// Empty strings are no filter; "none" selects projects with no lifecycle.
+		const unfiltered = withProfiles.projectGallery({
+			status: "",
+			lifecycle: "",
+		});
+		expect(unfiltered.count).toBe(4);
+		expect(unfiltered.filters).toEqual({ status: null, lifecycle: null });
+		const none = withProfiles.projectGallery({ lifecycle: "none" });
+		expect(none.cards.map((c) => c.slug)).toEqual(["undated"]);
 	});
 
 	it("groups the timeline by last-active month and lists undated projects", () => {

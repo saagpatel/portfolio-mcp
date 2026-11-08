@@ -239,7 +239,7 @@ export function buildServer(): McpServer {
 					.string()
 					.optional()
 					.describe(
-						'Only projects in this lifecycle, e.g. "active", "dormant" or "manual-only"',
+						'Only projects in this lifecycle, e.g. "active", "dormant" or "manual-only"; "none" for projects with no lifecycle',
 					),
 			},
 			annotations: { readOnlyHint: true, openWorldHint: false },

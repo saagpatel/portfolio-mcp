@@ -283,22 +283,26 @@ export function createTools(corpus: Corpus) {
 			.sort(byRecency);
 	}
 
-	/** show_project_gallery: the data behind the gallery app. */
+	/** show_project_gallery: the data behind the gallery app. Empty filters mean
+	 * no filter; lifecycle "none" selects projects with no declared lifecycle,
+	 * matching the app's "No lifecycle" chip. */
 	function projectGallery(
 		opts: { status?: string; lifecycle?: string } = {},
 	): ProjectGalleryView {
+		const status = opts.status || null;
+		const lifecycle = opts.lifecycle || null;
 		const cards = galleryCards().filter(
 			(c) =>
-				(!opts.status || c.status === opts.status) &&
-				(!opts.lifecycle || c.lifecycle === opts.lifecycle),
+				(!status || c.status === status) &&
+				(!lifecycle ||
+					(lifecycle === "none"
+						? c.lifecycle === null
+						: c.lifecycle === lifecycle)),
 		);
 		return {
 			view: "gallery",
 			generated_at: corpus.projects.generated_at,
-			filters: {
-				status: opts.status ?? null,
-				lifecycle: opts.lifecycle ?? null,
-			},
+			filters: { status, lifecycle },
 			count: cards.length,
 			cards,
 			archive: archiveSummary(),
