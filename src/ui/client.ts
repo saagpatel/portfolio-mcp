@@ -208,9 +208,18 @@ export function startApp(): () => void {
 		state: { tab: "profiles", index: 0, answers: {} },
 	};
 
-	function drawOperant(): void {
-		if (root && operant.view) {
-			root.innerHTML = operantBody(operant.view, operant.state);
+	/** Re-render the OPERANT view. A click redraw replaces the focused control,
+	 * so move focus to the first of `focus` that exists (the next sensible
+	 * control) instead of letting it fall back to <body>. */
+	function drawOperant(...focus: string[]): void {
+		if (!root || !operant.view) return;
+		root.innerHTML = operantBody(operant.view, operant.state);
+		for (const selector of focus) {
+			const el = root.querySelector<HTMLElement>(selector);
+			if (el) {
+				el.focus();
+				break;
+			}
 		}
 	}
 
@@ -233,7 +242,7 @@ export function startApp(): () => void {
 		const next = tab?.dataset.operantTab;
 		if (next === "profiles" || next === "demo") {
 			operant.state.tab = next;
-			drawOperant();
+			drawOperant(`[data-operant-tab="${next}"]`);
 			return true;
 		}
 		const scenario = view.demo.scenarios[operant.state.index];
@@ -241,18 +250,18 @@ export function startApp(): () => void {
 		if (choice?.dataset.demoChoice && scenario) {
 			if (operant.state.answers[scenario.id] === undefined) {
 				operant.state.answers[scenario.id] = choice.dataset.demoChoice;
-				drawOperant();
+				drawOperant("[data-demo-next]");
 			}
 			return true;
 		}
 		if (target?.closest("[data-demo-next]") && scenario) {
 			operant.state.index += 1;
-			drawOperant();
+			drawOperant("[data-demo-choice]", "[data-demo-restart]");
 			return true;
 		}
 		if (target?.closest("[data-demo-restart]")) {
 			operant.state = { tab: "demo", index: 0, answers: {} };
-			drawOperant();
+			drawOperant("[data-demo-choice]");
 			return true;
 		}
 		return false;
