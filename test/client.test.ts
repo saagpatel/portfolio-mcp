@@ -231,7 +231,33 @@ describe("MCP App client", () => {
 
 	it("shows a note and sends nothing when opened outside a host frame", () => {
 		document.body.innerHTML = '<main id="app"></main>';
-		stop = startApp();
+		expect(window.parent).toBe(window);
+		const posted: unknown[] = [];
+		const realPost = window.postMessage;
+		window.postMessage = ((message: unknown) => {
+			posted.push(message);
+		}) as typeof window.postMessage;
+		try {
+			stop = startApp();
+		} finally {
+			window.postMessage = realPost;
+		}
 		expect(app()?.textContent).toContain("renders inside an MCP host");
+		expect(posted).toEqual([]);
+	});
+
+	it("leaves the document alone when stopped before the handshake finishes", async () => {
+		document.body.innerHTML = '<main id="app"></main>';
+		const parent = { postMessage: () => {} };
+		Object.defineProperty(window, "parent", {
+			value: parent,
+			configurable: true,
+		});
+		const first = startApp();
+		first(); // rejects the pending ui/initialize
+		const appRoot = app();
+		if (appRoot) appRoot.innerHTML = "<p>replacement</p>";
+		await flush();
+		expect(app()?.textContent).toBe("replacement");
 	});
 });
