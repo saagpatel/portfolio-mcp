@@ -26,9 +26,12 @@ import {
 } from "./render";
 
 const PROTOCOL_VERSION = "2026-01-26";
-// A host that never answers a request should not leave a button silently dead.
-const REQUEST_TIMEOUT_MS = 10_000;
+// Requests never time out: a host may be slow to start or wait on a consent
+// dialog, and a late reply must still land. After SLOW_MS the clicked control
+// says it is waiting, so the button never looks silently dead.
+const SLOW_MS = 10_000;
 const NOTE_MS = 6_000;
+const WAITING_TEXT = "Waiting for the host…";
 const APP_INFO = { name: "portfolio-explorer", version: "0.1.0" };
 
 type JsonRpcMessage = {
@@ -54,6 +57,19 @@ type HostCapabilities = {
 const isRecord = (v: unknown): v is Record<string, unknown> =>
 	typeof v === "object" && v !== null && !Array.isArray(v);
 
+/** A host's JSON-RPC error as text; the shape is only a cast over postMessage
+ * data, so tolerate missing or odd fields. */
+function rpcErrorText(error: unknown): string {
+	if (!isRecord(error)) return "the host returned an error";
+	const message =
+		typeof error.message === "string" && error.message
+			? error.message
+			: "the host returned an error";
+	return typeof error.code === "number"
+		? `${message} (${error.code})`
+		: message;
+}
+
 /** Attach the app to the current document and start the host handshake. */
 export function startApp(): () => void {
 	const root = document.getElementById("app");
@@ -61,6 +77,7 @@ export function startApp(): () => void {
 	let capabilities: HostCapabilities = {};
 	let nextId = 1;
 	let stopped = false;
+	let slowInit: ReturnType<typeof setTimeout> | undefined;
 	const pending = new Map<
 		string | number,
 		{ resolve: (v: unknown) => void; reject: (e: Error) => void }
@@ -73,20 +90,7 @@ export function startApp(): () => void {
 	function request(method: string, params: unknown): Promise<unknown> {
 		const id = nextId++;
 		return new Promise((resolve, reject) => {
-			const timer = setTimeout(() => {
-				pending.delete(id);
-				reject(new Error("no response from the host"));
-			}, REQUEST_TIMEOUT_MS);
-			pending.set(id, {
-				resolve: (value) => {
-					clearTimeout(timer);
-					resolve(value);
-				},
-				reject: (error) => {
-					clearTimeout(timer);
-					reject(error);
-				},
-			});
+			pending.set(id, { resolve, reject });
 			post({ id, method, params });
 		});
 	}
@@ -226,7 +230,12 @@ export function startApp(): () => void {
 	/** Show the outcome of a host request beside the control that started it.
 	 * The frame can be taller than the visible chat, so a page-level toast could
 	 * land off-screen; next to the button is where the user is looking. */
-	function note(anchor: HTMLElement, text: string, tone: "ok" | "error"): void {
+	function note(
+		anchor: HTMLElement,
+		text: string,
+		tone: "ok" | "error",
+		sticky = false,
+	): void {
 		anchor.parentElement?.querySelector(".note-inline")?.remove();
 		const el = document.createElement("span");
 		el.className = "note-inline";
@@ -234,7 +243,27 @@ export function startApp(): () => void {
 		el.setAttribute("role", "status");
 		el.textContent = text;
 		anchor.insertAdjacentElement("afterend", el);
-		setTimeout(() => el.remove(), NOTE_MS);
+		if (!sticky) setTimeout(() => el.remove(), NOTE_MS);
+	}
+
+	/** Run a host request for a clicked control: after SLOW_MS without a reply,
+	 * say so (and keep waiting); the settled outcome replaces that note. */
+	function hostRequest(
+		anchor: HTMLElement,
+		method: string,
+		params: unknown,
+	): Promise<unknown> {
+		const slow = setTimeout(
+			() => note(anchor, WAITING_TEXT, "ok", true),
+			SLOW_MS,
+		);
+		// Runs before the caller's handlers: drop the waiting note so a success
+		// that shows nothing (an opened link) does not leave it behind.
+		return request(method, params).finally(() => {
+			clearTimeout(slow);
+			const waiting = anchor.parentElement?.querySelector(".note-inline");
+			if (waiting?.textContent === WAITING_TEXT) waiting.remove();
+		});
 	}
 
 	function openLink(url: string, anchor: HTMLElement): void {
@@ -242,7 +271,7 @@ export function startApp(): () => void {
 			window.open(url, "_blank", "noopener,noreferrer");
 			return;
 		}
-		request("ui/open-link", { url })
+		hostRequest(anchor, "ui/open-link", { url })
 			.then((result) => {
 				if (hostDeclined(result)) {
 					note(anchor, "The host didn't open the link.", "error");
@@ -257,7 +286,7 @@ export function startApp(): () => void {
 	/** Ask the host to put a question in the chat. Hosts decide how: Claude
 	 * stages it in the chat box (with a caution banner) for the user to send. */
 	function ask(name: string, anchor: HTMLElement): void {
-		request("ui/message", {
+		hostRequest(anchor, "ui/message", {
 			role: "user",
 			content: [
 				{
@@ -334,7 +363,7 @@ export function startApp(): () => void {
 			const waiter = pending.get(id);
 			if (!waiter) return;
 			pending.delete(id);
-			if (error) waiter.reject(new Error(`${error.message} (${error.code})`));
+			if (error) waiter.reject(new Error(rpcErrorText(error)));
 			else waiter.resolve(result);
 			return;
 		}
@@ -374,6 +403,13 @@ export function startApp(): () => void {
 			`This is the portfolio ${viewKind} app. It renders inside an MCP host that supports MCP Apps.`,
 		);
 	} else {
+		// No timeout here either, but a host that is slow to answer the handshake
+		// gets a visible status instead of an indefinite "Loading…".
+		slowInit = setTimeout(() => {
+			if (root?.querySelector(".loading")) {
+				setStatus("Still waiting for the host to start the app…");
+			}
+		}, SLOW_MS);
 		request("ui/initialize", {
 			appInfo: APP_INFO,
 			appCapabilities: { availableDisplayModes: ["inline"] },
@@ -388,6 +424,7 @@ export function startApp(): () => void {
 				}
 				notify("ui/notifications/initialized", {});
 			})
+			.finally(() => clearTimeout(slowInit))
 			.catch((error: unknown) => {
 				if (stopped) return; // stop() rejected the handshake; the DOM is no longer ours
 				console.error("ui/initialize failed", error);
@@ -402,6 +439,7 @@ export function startApp(): () => void {
 		document.removeEventListener("change", onChange);
 		window.removeEventListener("message", onMessage);
 		resizeObserver.disconnect();
+		clearTimeout(slowInit);
 		for (const waiter of pending.values())
 			waiter.reject(new Error("app stopped"));
 		pending.clear();

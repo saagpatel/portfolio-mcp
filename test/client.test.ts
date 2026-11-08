@@ -229,6 +229,40 @@ describe("MCP App client", () => {
 		expect(root.style.getPropertyValue("not-a-var")).toBe("");
 	});
 
+	it("shows a status while a slow host finishes the handshake", async () => {
+		document.body.innerHTML =
+			'<main id="app"><p class="loading">Loading…</p></main>';
+		const sent: Sent[] = [];
+		const parent = { postMessage: (m: Sent) => sent.push(m) };
+		Object.defineProperty(window, "parent", {
+			value: parent,
+			configurable: true,
+		});
+		vi.useFakeTimers();
+		try {
+			stop = startApp();
+			await vi.advanceTimersByTimeAsync(10_001);
+			expect(app()?.textContent).toContain("Still waiting for the host");
+			const init = sent.find((m) => m.method === "ui/initialize");
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: {
+						jsonrpc: "2.0",
+						id: init?.id,
+						result: { hostCapabilities: {}, hostContext: {} },
+					},
+					source: parent as unknown as MessageEventSource,
+				}),
+			);
+			await vi.advanceTimersByTimeAsync(0);
+			expect(
+				sent.some((m) => m.method === "ui/notifications/initialized"),
+			).toBe(true);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("shows a note and sends nothing when opened outside a host frame", () => {
 		document.body.innerHTML = '<main id="app"></main>';
 		expect(window.parent).toBe(window);
@@ -299,20 +333,96 @@ describe("MCP App client", () => {
 			expect(noteText()).toBe("Couldn't ask in the chat: not allowed (-32000)");
 		});
 
-		it("gives up on a host that never answers", async () => {
-			await clickAsk();
+		it("says it is waiting on a slow host, then shows the late reply", async () => {
+			const host = await boot({ message: {} });
+			host.fromHost(toolResult(galleryView([card("ink", null)])));
 			vi.useFakeTimers();
 			try {
-				// The click above already started the 10 s request timer under real
-				// timers, so drive a fresh click under fake ones.
 				document.querySelector<HTMLElement>("[data-ask]")?.click();
 				await vi.advanceTimersByTimeAsync(10_001);
-				expect(noteText()).toBe(
-					"Couldn't ask in the chat: no response from the host",
-				);
+				expect(noteText()).toBe("Waiting for the host…");
+				// A consent dialog or cold start can answer long after that.
+				await vi.advanceTimersByTimeAsync(20_000);
+				expect(noteText()).toBe("Waiting for the host…");
+				const request = host.sent.find((m) => m.method === "ui/message");
+				host.fromHost({ jsonrpc: "2.0", id: request?.id, result: {} });
+				await vi.advanceTimersByTimeAsync(0);
+				expect(noteText()).toBe("Sent — check the chat box.");
 			} finally {
 				vi.useRealTimers();
 			}
+		});
+
+		it("clears the waiting note when a slow link opens successfully", async () => {
+			const host = await boot({ openLinks: {} });
+			host.fromHost(toolResult(galleryView([card("ink", null)])));
+			vi.useFakeTimers();
+			try {
+				document.querySelector<HTMLElement>("[data-open-link]")?.click();
+				await vi.advanceTimersByTimeAsync(10_001);
+				expect(noteText()).toBe("Waiting for the host…");
+				const request = host.sent.find((m) => m.method === "ui/open-link");
+				host.fromHost({ jsonrpc: "2.0", id: request?.id, result: {} });
+				await vi.advanceTimersByTimeAsync(0);
+				expect(document.querySelector(".note-inline")).toBeNull();
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		it("tolerates a malformed host error", async () => {
+			const { request, fromHost } = await clickAsk();
+			fromHost({ jsonrpc: "2.0", id: request.id, error: { oops: true } });
+			await flush();
+			expect(noteText()).toBe(
+				"Couldn't ask in the chat: the host returned an error",
+			);
+		});
+
+		it("puts the note inside the timeline row it came from", async () => {
+			const host = await boot({ message: {} });
+			host.fromHost(
+				toolResult({
+					view: "timeline",
+					title: "Project timeline",
+					basis: "basis",
+					generated_at: "t",
+					count: 1,
+					undated: [],
+					months: [
+						{
+							month: "2026-08",
+							events: [
+								{
+									date: "2026-08-21",
+									slug: "mcp-trust",
+									name: "mcp-trust",
+									lifecycle: "active",
+									status: null,
+									stack: [],
+									url: null,
+								},
+							],
+						},
+					],
+					archive: {
+						total: 1,
+						maintained: 0,
+						tested: 0,
+						ci: 0,
+						shown: 1,
+						stacks: [],
+						lifecycle: [],
+					},
+				}),
+			);
+			document.querySelector<HTMLElement>(".event [data-ask]")?.click();
+			const request = host.sent.find((m) => m.method === "ui/message");
+			host.fromHost({ jsonrpc: "2.0", id: request?.id, result: {} });
+			await flush();
+			const placed = document.querySelector(".note-inline");
+			expect(placed?.closest(".event")).not.toBeNull();
+			expect(placed?.previousElementSibling?.matches("[data-ask]")).toBe(true);
 		});
 
 		it("reports a declined repository link", async () => {
