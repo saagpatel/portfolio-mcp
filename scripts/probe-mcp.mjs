@@ -71,6 +71,16 @@ const REQUIRED_LIVE_TOOLS = ["search", "get_operant_results"];
 /** Expected tools absent from `liveNames`; throws on unexpected or required. */
 export function checkPendingTools(liveNames) {
 	const live = new Set(liveNames);
+	if (live.size !== liveNames.length) {
+		const duplicates = liveNames.filter(
+			(name, index) => liveNames.indexOf(name) !== index,
+		);
+		throw new Error(
+			`tools/list has duplicate tool names: ${JSON.stringify([
+				...new Set(duplicates),
+			])}`,
+		);
+	}
 	const unexpected = [...live].filter((name) => !EXPECTED_TOOLS.includes(name));
 	if (unexpected.length > 0) {
 		throw new Error(

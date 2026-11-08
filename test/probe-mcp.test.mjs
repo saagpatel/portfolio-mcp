@@ -103,4 +103,10 @@ describe("probe-mcp", () => {
 			checkPendingTools(ALL_TOOLS.filter((name) => name !== "search")),
 		).toThrow(/missing tools the probe calls: \["search"\]/);
 	});
+
+	it("still fails when a live tool is listed twice", () => {
+		expect(() => checkPendingTools([...ALL_TOOLS, "search"])).toThrow(
+			/duplicate tool names: \["search"\]/,
+		);
+	});
 });
