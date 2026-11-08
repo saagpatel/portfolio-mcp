@@ -66,7 +66,7 @@ Documents are also exposed as **Resources** (`portfolio://essays/{slug}`, `portf
 
 ## Retrieval
 
-BM25 over a baked index (no embeddings in v1 — the committed corpus contains 166 docs and the
+BM25 over a baked index (no embeddings in v1 — the committed corpus contains 167 docs and the
 calling LLM supplies the semantics). Titles are boosted. Embeddings are a measured
 Phase 3 upgrade, added only if retrieval quality proves insufficient.
 
