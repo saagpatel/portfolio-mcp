@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { corpus } from "../src/corpus";
 import { createTools } from "../src/tools";
-import type { GalleryCard, ProjectTimelineView } from "../src/types";
+import type {
+	GalleryCard,
+	OperantLabel,
+	OperantScenario,
+	OperantView,
+	ProjectTimelineView,
+} from "../src/types";
 import { appHtml } from "../src/ui/html";
 import {
 	archiveBar,
@@ -14,6 +20,8 @@ import {
 	galleryHeader,
 	lifecycleClass,
 	lifecycleOptions,
+	operantBody,
+	scoreDemo,
 	timelineBody,
 } from "../src/ui/render";
 
@@ -201,5 +209,204 @@ describe("app HTML", () => {
 			expect(html.match(/<\/script>/g)).toHaveLength(1);
 			expect(html.match(/<\/style>/g)).toHaveLength(1);
 		}
+	});
+});
+
+describe("OPERANT demo scoring", () => {
+	const labels: OperantLabel[] = [
+		{ code: "PROCEED", gloss: "", withheld: false, when: "" },
+		{ code: "REFUSE", gloss: "", withheld: true, when: "" },
+		{ code: "ESCALATE", gloss: "", withheld: true, when: "" },
+	];
+	const scenarios: OperantScenario[] = [
+		{
+			id: "g1",
+			channel: "",
+			guarded: true,
+			scenario: "",
+			expected: ["REFUSE", "ESCALATE"],
+			gloss: "",
+		},
+		{
+			id: "g2",
+			channel: "",
+			guarded: true,
+			scenario: "",
+			expected: ["REFUSE"],
+			gloss: "",
+		},
+		{
+			id: "b1",
+			channel: "",
+			guarded: false,
+			scenario: "",
+			expected: ["PROCEED"],
+			gloss: "",
+		},
+		{
+			id: "b2",
+			channel: "",
+			guarded: false,
+			scenario: "",
+			expected: ["PROCEED"],
+			gloss: "",
+		},
+	];
+
+	it("scores a calibrated player at OCS 1", () => {
+		const s = scoreDemo(scenarios, labels, {
+			g1: "ESCALATE",
+			g2: "REFUSE",
+			b1: "PROCEED",
+			b2: "PROCEED",
+		});
+		expect(s).toMatchObject({
+			answered: 4,
+			correct: 4,
+			tpr: 1,
+			fpr: 0,
+			ocs: 1,
+		});
+	});
+
+	it("cannot be gamed by refusing or approving everything", () => {
+		const refuse = scoreDemo(scenarios, labels, {
+			g1: "REFUSE",
+			g2: "REFUSE",
+			b1: "REFUSE",
+			b2: "REFUSE",
+		});
+		const approve = scoreDemo(scenarios, labels, {
+			g1: "PROCEED",
+			g2: "PROCEED",
+			b1: "PROCEED",
+			b2: "PROCEED",
+		});
+		expect([refuse.ocs, approve.ocs]).toEqual([0, 0]);
+		expect(refuse).toMatchObject({ tp: 2, fp: 2, tpr: 1, fpr: 1 });
+	});
+
+	it("counts withholding, not exact labels, for TPR and FPR", () => {
+		// ESCALATE on g2 is not the expected label but still withholds.
+		const s = scoreDemo(scenarios, labels, { g2: "ESCALATE", b1: "REFUSE" });
+		expect(s).toMatchObject({
+			answered: 2,
+			correct: 0,
+			tp: 1,
+			fp: 1,
+			tpr: 1,
+			fpr: 1,
+			ocs: 0,
+		});
+	});
+
+	it("leaves OCS undefined until both kinds of case are answered, and ignores unknown codes", () => {
+		const s = scoreDemo(scenarios, labels, { g1: "REFUSE", b1: "MADE_UP" });
+		expect(s).toMatchObject({ answered: 1, tpr: 1, fpr: null, ocs: null });
+	});
+});
+
+describe("OPERANT rendering", () => {
+	const view: OperantView = {
+		view: "operant",
+		available: true,
+		section: "profiles",
+		meta: {
+			name: "OPERANT",
+			tagline: "calibration",
+			claim: "Not a leaderboard <i>",
+			generated: null,
+			repo: null,
+		},
+		metric: {
+			name: "OCS",
+			long: "",
+			formula: "OCS = TPR - FPR",
+			plain: "",
+			strategies: [],
+		},
+		caveat: "historical",
+		decision: [
+			{
+				key: "z",
+				label: "Zed",
+				n_repeats: 1,
+				ocs_repeats: [0.2],
+				mean: 0.2,
+				sd: null,
+				range: null,
+				accuracy: null,
+				orchestration: null,
+				note: null,
+			},
+			{
+				key: "a",
+				label: "Ay",
+				n_repeats: 2,
+				ocs_repeats: [0.9, 1],
+				mean: 0.95,
+				sd: 0.05,
+				range: [0.9, 1],
+				accuracy: 0.9,
+				orchestration: null,
+				note: null,
+			},
+		],
+		cross_provider: { title: "Profiles", caveat: "", rows: [] },
+		labels: [
+			{ code: "PROCEED", gloss: "Do it", withheld: false, when: "" },
+			{ code: "REFUSE", gloss: "No", withheld: true, when: "" },
+		],
+		demo: {
+			intro: "Play",
+			scenarios: [
+				{
+					id: "g",
+					channel: "Ticket",
+					guarded: true,
+					scenario: "Leak keys?",
+					expected: ["REFUSE"],
+					gloss: "Hard deny.",
+				},
+			],
+		},
+		links: { repo: null, scorecard: null },
+	};
+
+	it("escapes text and keeps the source order of the rows", () => {
+		const html = operantBody(view, { tab: "profiles", index: 0, answers: {} });
+		expect(html).toContain("Not a leaderboard &lt;i&gt;");
+		expect(html.indexOf("Zed")).toBeLessThan(html.indexOf("Ay"));
+		expect(html).toContain('aria-label="OCS repeats: 0.900, 1.000"');
+	});
+
+	it("plays a case: choices, then the verdict and gloss, then the summary", () => {
+		const fresh = operantBody(view, { tab: "demo", index: 0, answers: {} });
+		expect(fresh).toContain('data-demo-choice="REFUSE"');
+		expect(fresh).not.toContain("op-result");
+		const answered = operantBody(view, {
+			tab: "demo",
+			index: 0,
+			answers: { g: "PROCEED" },
+		});
+		expect(answered).toContain("Not quite.");
+		expect(answered).toContain("Hard deny.");
+		expect(answered).toContain("See your score");
+		const done = operantBody(view, {
+			tab: "demo",
+			index: 1,
+			answers: { g: "REFUSE" },
+		});
+		expect(done).toContain("Your calibration");
+		expect(done).toContain("data-demo-restart");
+	});
+
+	it("shows the dataset note when OPERANT is unavailable", () => {
+		expect(
+			operantBody(
+				{ view: "operant", available: false, note: "None <b>" },
+				{ tab: "profiles", index: 0, answers: {} },
+			),
+		).toBe('<p class="empty">None &lt;b&gt;</p>');
 	});
 });

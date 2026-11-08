@@ -20,6 +20,7 @@ const EXPECTED_TOOLS = [
 	"list_projects",
 	"list_repo_profiles",
 	"search",
+	"show_operant_results",
 	"show_project_gallery",
 	"show_project_timeline",
 ];

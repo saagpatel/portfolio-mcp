@@ -11,6 +11,7 @@
 
 import type {
 	GalleryCard,
+	OperantView,
 	ProjectGalleryView,
 	ProjectTimelineView,
 } from "../types";
@@ -21,6 +22,8 @@ import {
 	galleryCards,
 	galleryControls,
 	galleryHeader,
+	type OperantState,
+	operantBody,
 	type RenderOptions,
 	timelineBody,
 } from "./render";
@@ -199,6 +202,62 @@ export function startApp(): () => void {
 		if (root) root.innerHTML = timelineBody(view, options());
 	}
 
+	// OPERANT: a new tool result resets the demo; clicks re-render the view.
+	const operant: { view: OperantView | null; state: OperantState } = {
+		view: null,
+		state: { tab: "profiles", index: 0, answers: {} },
+	};
+
+	function drawOperant(): void {
+		if (root && operant.view) {
+			root.innerHTML = operantBody(operant.view, operant.state);
+		}
+	}
+
+	function renderOperant(view: OperantView): void {
+		shown = "content";
+		operant.view = view;
+		operant.state = {
+			tab: view.available ? view.section : "profiles",
+			index: 0,
+			answers: {},
+		};
+		drawOperant();
+	}
+
+	/** Demo and tab clicks; returns true when the click was an OPERANT control. */
+	function operantClick(target: Element | null): boolean {
+		const view = operant.view;
+		if (!view?.available) return false;
+		const tab = target?.closest<HTMLElement>("[data-operant-tab]");
+		const next = tab?.dataset.operantTab;
+		if (next === "profiles" || next === "demo") {
+			operant.state.tab = next;
+			drawOperant();
+			return true;
+		}
+		const scenario = view.demo.scenarios[operant.state.index];
+		const choice = target?.closest<HTMLElement>("[data-demo-choice]");
+		if (choice?.dataset.demoChoice && scenario) {
+			if (operant.state.answers[scenario.id] === undefined) {
+				operant.state.answers[scenario.id] = choice.dataset.demoChoice;
+				drawOperant();
+			}
+			return true;
+		}
+		if (target?.closest("[data-demo-next]") && scenario) {
+			operant.state.index += 1;
+			drawOperant();
+			return true;
+		}
+		if (target?.closest("[data-demo-restart]")) {
+			operant.state = { tab: "demo", index: 0, answers: {} };
+			drawOperant();
+			return true;
+		}
+		return false;
+	}
+
 	function render(data: unknown): void {
 		if (!isRecord(data)) {
 			setStatus("This tool result has no data to show.");
@@ -208,8 +267,16 @@ export function startApp(): () => void {
 			renderGallery(data as ProjectGalleryView);
 		} else if (data.view === "timeline" && Array.isArray(data.months)) {
 			renderTimeline(data as ProjectTimelineView);
+		} else if (
+			data.view === "operant" &&
+			(data.available === false ||
+				(data.available === true &&
+					Array.isArray(data.decision) &&
+					isRecord(data.demo)))
+		) {
+			renderOperant(data as OperantView);
 		} else {
-			setStatus("This tool result is not a gallery or timeline.");
+			setStatus("This tool result is not a view this app knows.");
 		}
 	}
 
@@ -347,6 +414,7 @@ export function startApp(): () => void {
 			ask(askButton.dataset.ask, askButton);
 			return;
 		}
+		if (operantClick(target)) return;
 		const chip = target?.closest<HTMLElement>("[data-lifecycle]");
 		if (chip?.dataset.lifecycle) {
 			gallery.state.lifecycle = chip.dataset.lifecycle;

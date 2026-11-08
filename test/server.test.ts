@@ -115,7 +115,7 @@ describe("MCP server over the Worker fetch handler", () => {
 		expect(resultOf(json).serverInfo?.name).toBe("saagarpatel-portfolio");
 	});
 
-	it("lists the 10 read-only tools", async () => {
+	it("lists the 11 read-only tools", async () => {
 		const { json } = await rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" });
 		const tools = json.result?.tools ?? [];
 		const names = tools.map((t) => t.name).sort();
@@ -128,6 +128,7 @@ describe("MCP server over the Worker fetch handler", () => {
 			"list_projects",
 			"list_repo_profiles",
 			"search",
+			"show_operant_results",
 			"show_project_gallery",
 			"show_project_timeline",
 		]);
@@ -144,6 +145,7 @@ describe("MCP server over the Worker fetch handler", () => {
 		for (const [name, uri] of [
 			["show_project_gallery", "ui://portfolio/project-gallery.html"],
 			["show_project_timeline", "ui://portfolio/project-timeline.html"],
+			["show_operant_results", "ui://portfolio/operant-results.html"],
 		] as const) {
 			const meta = byName.get(name)?._meta;
 			expect(meta?.ui).toEqual({ resourceUri: uri });
@@ -163,6 +165,7 @@ describe("MCP server over the Worker fetch handler", () => {
 			r.uri.startsWith("ui://"),
 		);
 		expect(apps.map((r) => r.uri).sort()).toEqual([
+			"ui://portfolio/operant-results.html",
 			"ui://portfolio/project-gallery.html",
 			"ui://portfolio/project-timeline.html",
 		]);
@@ -189,10 +192,28 @@ describe("MCP server over the Worker fetch handler", () => {
 		}
 	});
 
+	it("opens the OPERANT view on the requested tab with the demo scenarios", async () => {
+		const { json } = await rpc({
+			jsonrpc: "2.0",
+			id: 44,
+			method: "tools/call",
+			params: { name: "show_operant_results", arguments: { section: "demo" } },
+		});
+		const view = resultOf(json).structuredContent;
+		expect(view).toMatchObject({
+			view: "operant",
+			available: true,
+			section: "demo",
+		});
+		const demo = view?.demo as { scenarios?: unknown[] } | undefined;
+		expect(demo?.scenarios?.length).toBeGreaterThan(0);
+	});
+
 	it("returns the gallery and timeline as structuredContent and JSON text", async () => {
 		for (const [name, view] of [
 			["show_project_gallery", "gallery"],
 			["show_project_timeline", "timeline"],
+			["show_operant_results", "operant"],
 		] as const) {
 			const { json } = await rpc({
 				jsonrpc: "2.0",
