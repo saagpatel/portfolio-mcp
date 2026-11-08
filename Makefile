@@ -7,6 +7,7 @@ check:
 	npm run lint
 	npm run format:check
 	npm run typecheck
+	node scripts/build-ui.mjs --check
 	npm run build:cli
 	npm test
 	npm test -- test/stdio.test.ts

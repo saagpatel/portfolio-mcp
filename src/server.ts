@@ -13,6 +13,7 @@ import { z } from "zod";
 import { corpus } from "./corpus";
 import { createTools } from "./tools";
 import type { DocType } from "./types";
+import { APP_MIME_TYPE, type AppView, appHtml } from "./ui/html";
 
 const tools = createTools(corpus); // builds the BM25 index once per isolate
 
@@ -29,7 +30,30 @@ const INSTRUCTIONS =
 	"Read-only access to Saagar Patel's writing (essays, a book, field notes), " +
 	"projects, public-safe repo profiles, and OPERANT benchmark results, served " +
 	"from saagarpatel.dev. Start with get_profile or list_corpus to orient, " +
-	"search to find by topic, and get_document to read full text.";
+	"search to find by topic, and get_document to read full text. " +
+	"show_project_gallery and show_project_timeline return the projects as " +
+	"interactive views in hosts that support MCP Apps, and as JSON elsewhere.";
+
+// MCP Apps (UI extension): each app is a ui:// HTML resource; a tool points at
+// it through _meta.ui.resourceUri (plus the legacy flat key older hosts read).
+const APP_URIS: Record<AppView, string> = {
+	gallery: "ui://portfolio/project-gallery.html",
+	timeline: "ui://portfolio/project-timeline.html",
+};
+
+// No csp domains: the apps make no network requests and load nothing remote.
+const APP_RESOURCE_META = { ui: { prefersBorder: true } };
+
+const appToolMeta = (view: AppView) => ({
+	ui: { resourceUri: APP_URIS[view] },
+	"ui/resourceUri": APP_URIS[view],
+});
+
+/** The same object as structuredContent (apps) and JSON text (everyone else). */
+const appResult = (data: Record<string, unknown>) => ({
+	content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
+	structuredContent: data,
+});
 
 const jsonResult = (data: unknown) => ({
 	content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
@@ -197,6 +221,73 @@ export function buildServer(): McpServer {
 		},
 		async () => jsonResult(tools.getOperantResults()),
 	);
+
+	server.registerTool(
+		"show_project_gallery",
+		{
+			title: "Show project gallery",
+			description:
+				"Show the curated public projects as a gallery of cards: name, category, stack, lifecycle, " +
+				"last-active date, test/CI signals, and the public repository link, with archive-wide totals. " +
+				"Hosts that support MCP Apps render it as an interactive gallery; others get the same data as JSON.",
+			inputSchema: {
+				status: z
+					.string()
+					.optional()
+					.describe('Only projects with this status, e.g. "active" or "stale"'),
+				lifecycle: z
+					.string()
+					.optional()
+					.describe(
+						'Only projects in this lifecycle, e.g. "active", "dormant" or "manual-only"',
+					),
+			},
+			annotations: { readOnlyHint: true, openWorldHint: false },
+			_meta: appToolMeta("gallery"),
+		},
+		async ({ status, lifecycle }) =>
+			appResult(tools.projectGallery({ status, lifecycle })),
+	);
+
+	server.registerTool(
+		"show_project_timeline",
+		{
+			title: "Show project timeline",
+			description:
+				"Show the curated public projects on a timeline grouped by last-active month, colored by " +
+				"lifecycle, with the lifecycle breakdown of the whole archive. Hosts that support MCP Apps " +
+				"render it as an interactive timeline; others get the same data as JSON.",
+			inputSchema: {},
+			annotations: { readOnlyHint: true, openWorldHint: false },
+			_meta: appToolMeta("timeline"),
+		},
+		async () => appResult(tools.projectTimeline()),
+	);
+
+	// ---- app resources: the HTML the two show_* tools render in ----
+	for (const view of ["gallery", "timeline"] as const) {
+		server.registerResource(
+			`project-${view}-app`,
+			APP_URIS[view],
+			{
+				title:
+					view === "gallery" ? "Project gallery app" : "Project timeline app",
+				description: `Interactive ${view} view for show_project_${view} (MCP Apps)`,
+				mimeType: APP_MIME_TYPE,
+				_meta: APP_RESOURCE_META,
+			},
+			async (uri) => ({
+				contents: [
+					{
+						uri: uri.href,
+						mimeType: APP_MIME_TYPE,
+						text: appHtml(view),
+						_meta: APP_RESOURCE_META,
+					},
+				],
+			}),
+		);
+	}
 
 	// ---- resources: each document type as a URI template, plus a profile resource ----
 	const registerDocType = (

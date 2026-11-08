@@ -125,7 +125,7 @@ describe("stdio MCP transport", () => {
 			);
 			const listed = await waitFor((message) => message.id === 2);
 			expect(listed.error).toBeUndefined();
-			expect(listed.result?.tools?.length).toBe(8);
+			expect(listed.result?.tools?.length).toBe(10);
 		} finally {
 			child.stdin.end();
 			if (child.exitCode === null) child.kill();

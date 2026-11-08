@@ -1,6 +1,6 @@
 // End-to-end test of the actual Worker fetch handler driving the MCP protocol
 // (stateless streamable HTTP, JSON responses). Verifies the transport wiring, the
-// 8 tools, and the resources against the baked corpus.
+// tools, the MCP App resources, and the resources against the baked corpus.
 
 import { describe, expect, it, vi } from "vitest";
 import handler from "../src/index";
@@ -17,9 +17,17 @@ type RpcResponse = {
 		tools?: Array<{
 			name: string;
 			annotations?: { readOnlyHint?: boolean };
+			_meta?: Record<string, unknown>;
 		}>;
 		content?: Array<{ text: string }>;
-		resources?: unknown[];
+		structuredContent?: Record<string, unknown>;
+		contents?: Array<{
+			uri: string;
+			mimeType?: string;
+			text?: string;
+			_meta?: Record<string, unknown>;
+		}>;
+		resources?: Array<{ uri: string; mimeType?: string }>;
 		prompts?: Array<{ name: string }>;
 		messages?: Array<{ content: { text: string } }>;
 	};
@@ -107,7 +115,7 @@ describe("MCP server over the Worker fetch handler", () => {
 		expect(resultOf(json).serverInfo?.name).toBe("saagarpatel-portfolio");
 	});
 
-	it("lists the 8 read-only tools", async () => {
+	it("lists the 10 read-only tools", async () => {
 		const { json } = await rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" });
 		const tools = json.result?.tools ?? [];
 		const names = tools.map((t) => t.name).sort();
@@ -120,8 +128,83 @@ describe("MCP server over the Worker fetch handler", () => {
 			"list_projects",
 			"list_repo_profiles",
 			"search",
+			"show_project_gallery",
+			"show_project_timeline",
 		]);
 		expect(tools.every((t) => t.annotations?.readOnlyHint === true)).toBe(true);
+	});
+
+	it("links the show_* tools to their ui:// app resources", async () => {
+		const { json } = await rpc({
+			jsonrpc: "2.0",
+			id: 40,
+			method: "tools/list",
+		});
+		const byName = new Map((json.result?.tools ?? []).map((t) => [t.name, t]));
+		for (const [name, uri] of [
+			["show_project_gallery", "ui://portfolio/project-gallery.html"],
+			["show_project_timeline", "ui://portfolio/project-timeline.html"],
+		] as const) {
+			const meta = byName.get(name)?._meta;
+			expect(meta?.ui).toEqual({ resourceUri: uri });
+			expect(meta?.["ui/resourceUri"]).toBe(uri);
+		}
+		// The data tools stay plain: no app metadata on them.
+		expect(byName.get("list_projects")?._meta).toBeUndefined();
+	});
+
+	it("serves each app as self-contained MCP App HTML", async () => {
+		const listed = await rpc({
+			jsonrpc: "2.0",
+			id: 41,
+			method: "resources/list",
+		});
+		const apps = (resultOf(listed.json).resources ?? []).filter((r) =>
+			r.uri.startsWith("ui://"),
+		);
+		expect(apps.map((r) => r.uri).sort()).toEqual([
+			"ui://portfolio/project-gallery.html",
+			"ui://portfolio/project-timeline.html",
+		]);
+		expect(apps.every((r) => r.mimeType === "text/html;profile=mcp-app")).toBe(
+			true,
+		);
+
+		for (const app of apps) {
+			const { json } = await rpc({
+				jsonrpc: "2.0",
+				id: 42,
+				method: "resources/read",
+				params: { uri: app.uri },
+			});
+			const content = resultOf(json).contents?.[0];
+			expect(content?.mimeType).toBe("text/html;profile=mcp-app");
+			expect(content?._meta).toEqual({ ui: { prefersBorder: true } });
+			const html = content?.text ?? "";
+			expect(html).toMatch(/^<!doctype html>/);
+			expect(html).toContain("ui/initialize");
+			// Self-contained: nothing loaded from another origin.
+			expect(html).not.toMatch(/<(script|link|img)[^>]+(src|href)=/i);
+			expect(html).not.toMatch(/https?:\/\/(?!github\.com)/);
+		}
+	});
+
+	it("returns the gallery and timeline as structuredContent and JSON text", async () => {
+		for (const [name, view] of [
+			["show_project_gallery", "gallery"],
+			["show_project_timeline", "timeline"],
+		] as const) {
+			const { json } = await rpc({
+				jsonrpc: "2.0",
+				id: 43,
+				method: "tools/call",
+				params: { name, arguments: {} },
+			});
+			const structured = resultOf(json).structuredContent;
+			expect(structured?.view).toBe(view);
+			// The plain-data fallback is the same object.
+			expect(textPayload(json)).toEqual(structured);
+		}
 	});
 
 	it("calls list_corpus and returns documents", async () => {

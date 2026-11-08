@@ -1,18 +1,60 @@
-// The eight MCP tools as pure functions behind a factory: no SDK, no transport,
+// The MCP tools as pure functions behind a factory: no SDK, no transport,
 // no I/O. createTools(corpus) builds the BM25 index once and returns the tool
 // set; server.ts wires these into MCP, tests call them with a fixture corpus.
 
 import { Bm25, type SearchDoc, snippet } from "./bm25";
 import type {
+	ArchiveSummary,
 	Corpus,
+	CountPair,
 	DocType,
 	FullDoc,
+	GalleryCard,
 	IndexRecord,
+	ProjectGalleryView,
 	ProjectRecord,
+	ProjectTimelineView,
 	RepoProfile,
 	RepoProfileIndex,
 	RepoProfileIndexRecord,
+	TimelineEvent,
+	TimelineMonth,
 } from "./types";
+
+/** Keep only well-formed [label, count] pairs from an untyped aggregate list. */
+function countPairs(list: unknown[]): CountPair[] {
+	const pairs: CountPair[] = [];
+	for (const item of list) {
+		if (
+			Array.isArray(item) &&
+			typeof item[0] === "string" &&
+			typeof item[1] === "number"
+		) {
+			pairs.push([item[0], item[1]]);
+		}
+	}
+	return pairs;
+}
+
+/** Only https links leave the server as clickable URLs. */
+function httpsUrl(value: string | undefined): string | null {
+	if (!value) return null;
+	try {
+		return new URL(value).protocol === "https:" ? value : null;
+	} catch {
+		return null;
+	}
+}
+
+/** Newest first, undated last, then by name. */
+function byRecency(a: GalleryCard, b: GalleryCard): number {
+	if (a.last_active !== b.last_active) {
+		if (!a.last_active) return 1;
+		if (!b.last_active) return -1;
+		return a.last_active < b.last_active ? 1 : -1;
+	}
+	return a.name.localeCompare(b.name);
+}
 
 export interface SearchResult {
 	id: string;
@@ -201,6 +243,107 @@ export function createTools(corpus: Corpus) {
 		};
 	}
 
+	/** Archive aggregates with the untyped lists narrowed to [label, count]. */
+	function archiveSummary(): ArchiveSummary {
+		const a = corpus.projects.archive;
+		return {
+			total: a.total,
+			maintained: a.maintained,
+			tested: a.tested,
+			ci: a.ci,
+			shown: a.shown,
+			stacks: countPairs(a.stacks),
+			lifecycle: countPairs(a.lifecycle),
+		};
+	}
+
+	/** Curated projects joined with their public repo profile, newest first. */
+	function galleryCards(): GalleryCard[] {
+		const profiles = corpus.repoProfiles?.profiles ?? {};
+		return Object.entries(corpus.projects.curated)
+			.map(([slug, p]): GalleryCard => {
+				const profile = Object.hasOwn(profiles, slug)
+					? profiles[slug]
+					: undefined;
+				const purpose = profile?.summary.purpose;
+				return {
+					slug,
+					name: profile?.display_name || slug,
+					category: profile?.summary.category || null,
+					purpose: purpose && purpose !== "unknown" ? purpose : null,
+					stack: p.stack,
+					status: p.status,
+					lifecycle: p.lifecycle,
+					last_active: p.last_active,
+					tests: p.tests,
+					ci: p.ci,
+					url: httpsUrl(profile?.public_reference),
+				};
+			})
+			.sort(byRecency);
+	}
+
+	/** show_project_gallery: the data behind the gallery app. */
+	function projectGallery(
+		opts: { status?: string; lifecycle?: string } = {},
+	): ProjectGalleryView {
+		const cards = galleryCards().filter(
+			(c) =>
+				(!opts.status || c.status === opts.status) &&
+				(!opts.lifecycle || c.lifecycle === opts.lifecycle),
+		);
+		return {
+			view: "gallery",
+			generated_at: corpus.projects.generated_at,
+			filters: {
+				status: opts.status ?? null,
+				lifecycle: opts.lifecycle ?? null,
+			},
+			count: cards.length,
+			cards,
+			archive: archiveSummary(),
+		};
+	}
+
+	/** show_project_timeline: curated projects grouped by last-active month. */
+	function projectTimeline(): ProjectTimelineView {
+		const cards = galleryCards();
+		const months = new Map<string, TimelineEvent[]>();
+		const undated: string[] = [];
+		for (const c of cards) {
+			if (!c.last_active) {
+				undated.push(c.slug);
+				continue;
+			}
+			const month = c.last_active.slice(0, 7);
+			const events = months.get(month) ?? [];
+			events.push({
+				date: c.last_active,
+				slug: c.slug,
+				name: c.name,
+				lifecycle: c.lifecycle,
+				status: c.status,
+				stack: c.stack,
+				url: c.url,
+			});
+			months.set(month, events);
+		}
+		const grouped: TimelineMonth[] = [...months.entries()].map(
+			([month, events]) => ({ month, events }),
+		);
+		return {
+			view: "timeline",
+			title: "Project timeline",
+			basis:
+				"Each project sits at its last-active date in the public portfolio audit.",
+			generated_at: corpus.projects.generated_at,
+			count: cards.length - undated.length,
+			undated,
+			months: grouped,
+			archive: archiveSummary(),
+		};
+	}
+
 	return {
 		search,
 		getDocument,
@@ -210,5 +353,7 @@ export function createTools(corpus: Corpus) {
 		listRepoProfiles,
 		getRepoProfile,
 		getOperantResults,
+		projectGallery,
+		projectTimeline,
 	};
 }
