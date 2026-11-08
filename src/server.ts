@@ -31,14 +31,16 @@ const INSTRUCTIONS =
 	"projects, public-safe repo profiles, and OPERANT benchmark results, served " +
 	"from saagarpatel.dev. Start with get_profile or list_corpus to orient, " +
 	"search to find by topic, and get_document to read full text. " +
-	"show_project_gallery and show_project_timeline return the projects as " +
-	"interactive views in hosts that support MCP Apps, and as JSON elsewhere.";
+	"show_project_gallery and show_project_timeline return the projects, and " +
+	"show_operant_results the OPERANT calibration profiles with a playable demo, " +
+	"as interactive views in hosts that support MCP Apps and as JSON elsewhere.";
 
 // MCP Apps (UI extension): each app is a ui:// HTML resource; a tool points at
 // it through _meta.ui.resourceUri (plus the legacy flat key older hosts read).
 const APP_URIS: Record<AppView, string> = {
 	gallery: "ui://portfolio/project-gallery.html",
 	timeline: "ui://portfolio/project-timeline.html",
+	operant: "ui://portfolio/operant-results.html",
 };
 
 // No csp domains: the apps make no network requests and load nothing remote.
@@ -264,15 +266,57 @@ export function buildServer(): McpServer {
 		async () => appResult(tools.projectTimeline()),
 	);
 
-	// ---- app resources: the HTML the two show_* tools render in ----
-	for (const view of ["gallery", "timeline"] as const) {
+	server.registerTool(
+		"show_operant_results",
+		{
+			title: "Show OPERANT results",
+			description:
+				"Show the public OPERANT benchmark as calibration-profile cards (historical OCS repeats, " +
+				"cross-provider TPR/FPR profiles, and the metric) with a playable demo: the reader acts as " +
+				"the operator's agent on six cases and is scored with the real OCS = TPR - FPR. The rows are " +
+				"historical calculations, not a leaderboard. Hosts that support MCP Apps render it as an " +
+				"interactive view; others get the same data as JSON.",
+			inputSchema: {
+				section: z
+					.enum(["profiles", "demo"])
+					.optional()
+					.describe('Tab to open first: "profiles" (default) or "demo"'),
+			},
+			annotations: { readOnlyHint: true, openWorldHint: false },
+			_meta: appToolMeta("operant"),
+		},
+		async ({ section }) => appResult(tools.operantView(section)),
+	);
+
+	// ---- app resources: the HTML the show_* tools render in ----
+	const APP_RESOURCES: Record<
+		AppView,
+		{ name: string; title: string; tool: string }
+	> = {
+		gallery: {
+			name: "project-gallery-app",
+			title: "Project gallery app",
+			tool: "show_project_gallery",
+		},
+		timeline: {
+			name: "project-timeline-app",
+			title: "Project timeline app",
+			tool: "show_project_timeline",
+		},
+		operant: {
+			name: "operant-app",
+			title: "OPERANT results app",
+			tool: "show_operant_results",
+		},
+	};
+	for (const view of ["gallery", "timeline", "operant"] as const) {
+		const app = APP_RESOURCES[view];
 		server.registerResource(
-			`project-${view}-app`,
+			app.name,
 			APP_URIS[view],
 			{
-				title:
-					view === "gallery" ? "Project gallery app" : "Project timeline app",
-				description: `Interactive ${view} view for show_project_${view} (MCP Apps)`,
+				title: app.title,
+				description: `Interactive view for ${app.tool} (MCP Apps)`,
 				mimeType: APP_MIME_TYPE,
 				_meta: APP_RESOURCE_META,
 			},

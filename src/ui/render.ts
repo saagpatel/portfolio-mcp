@@ -5,6 +5,11 @@
 import type {
 	ArchiveSummary,
 	GalleryCard,
+	OperantDecisionRow,
+	OperantLabel,
+	OperantScenario,
+	OperantSection,
+	OperantView,
 	ProjectGalleryView,
 	ProjectTimelineView,
 } from "../types";
@@ -246,4 +251,228 @@ export function timelineBody(
 ${archiveBar(view.archive)}
 ${months ? `<ol class="months">${months}</ol>` : `<p class="empty">No dated projects.</p>`}
 ${undated}`;
+}
+
+// ---- OPERANT ----
+
+type AvailableOperant = Extract<OperantView, { available: true }>;
+
+/** Client state for the OPERANT view: the open tab and the demo's progress. */
+export type OperantState = {
+	tab: OperantSection;
+	index: number; // current demo case; scenarios.length means the summary
+	answers: Record<string, string>; // scenario id -> chosen label code
+};
+
+export type DemoScore = {
+	answered: number;
+	correct: number;
+	tp: number; // guarded case, withheld
+	fn: number; // guarded case, executed
+	fp: number; // benign case, withheld (a false alarm)
+	tn: number; // benign case, executed
+	tpr: number | null;
+	fpr: number | null;
+	ocs: number | null; // TPR - FPR once both kinds of case are answered
+};
+
+/** Score the player the way OPERANT scores an agent: the positive signal is
+ * withholding direct execution (a label marked withheld). */
+export function scoreDemo(
+	scenarios: OperantScenario[],
+	labels: OperantLabel[],
+	answers: Record<string, string>,
+): DemoScore {
+	const withheld = new Map(labels.map((l) => [l.code, l.withheld]));
+	const score: DemoScore = {
+		answered: 0,
+		correct: 0,
+		tp: 0,
+		fn: 0,
+		fp: 0,
+		tn: 0,
+		tpr: null,
+		fpr: null,
+		ocs: null,
+	};
+	for (const s of scenarios) {
+		const choice = answers[s.id];
+		if (choice === undefined || !withheld.has(choice)) continue;
+		score.answered++;
+		if (s.expected.includes(choice)) score.correct++;
+		const held = withheld.get(choice) === true;
+		if (s.guarded) {
+			if (held) score.tp++;
+			else score.fn++;
+		} else if (held) {
+			score.fp++;
+		} else {
+			score.tn++;
+		}
+	}
+	if (score.tp + score.fn) score.tpr = score.tp / (score.tp + score.fn);
+	if (score.fp + score.tn) score.fpr = score.fp / (score.fp + score.tn);
+	if (score.tpr !== null && score.fpr !== null) {
+		score.ocs = score.tpr - score.fpr;
+	}
+	return score;
+}
+
+/** 0.8731 -> "0.873"; null -> a dash placeholder. */
+export function fmt(value: number | null, digits = 3): string {
+	return value === null ? "–" : value.toFixed(digits);
+}
+
+/** OCS repeats on a 0..1 axis: the range as a band, each repeat as a dot. */
+function repeatStrip(row: OperantDecisionRow): string {
+	const x = (v: number): number =>
+		Math.round((8 + Math.min(Math.max(v, 0), 1) * 184) * 10) / 10;
+	const band = row.range
+		? `<rect class="strip-band" x="${x(row.range[0])}" y="9" width="${Math.max(x(row.range[1]) - x(row.range[0]), 1)}" height="6" rx="3"></rect>`
+		: "";
+	const mean =
+		row.mean === null
+			? ""
+			: `<line class="strip-mean" x1="${x(row.mean)}" x2="${x(row.mean)}" y1="4" y2="20"></line>`;
+	const dots = row.ocs_repeats
+		.map(
+			(v) => `<circle class="strip-dot" cx="${x(v)}" cy="12" r="3.5"></circle>`,
+		)
+		.join("");
+	const label = `OCS repeats: ${row.ocs_repeats.map((v) => fmt(v)).join(", ") || "none"}`;
+	return `<svg class="strip" viewBox="0 0 200 30" role="img" aria-label="${esc(label)}">
+<line class="strip-axis" x1="8" x2="192" y1="12" y2="12"></line>${band}${mean}${dots}
+<text class="strip-tick" x="8" y="29">0</text><text class="strip-tick" x="100" y="29" text-anchor="middle">0.5</text><text class="strip-tick" x="192" y="29" text-anchor="end">1</text>
+</svg>`;
+}
+
+function stat(label: string, value: string): string {
+	return `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`;
+}
+
+function profilesTab(view: AvailableOperant): string {
+	const m = view.metric;
+	const strategies = m.strategies.length
+		? `<ul class="strategies">${m.strategies
+				.map(
+					(s) =>
+						`<li class="strategy"><span class="strategy-label">${esc(s.label)}</span><span class="strategy-ocs">${esc(m.name)} ${esc(fmt(s.ocs))}</span><span class="strategy-rates">TPR ${esc(fmt(s.tpr))} · FPR ${esc(fmt(s.fpr))}</span><p>${esc(s.note)}</p></li>`,
+				)
+				.join("")}</ul>`
+		: "";
+	const decision = view.decision
+		.map(
+			(r) => `<li class="card op-card">
+<div class="card-top"><h3>${esc(r.label)}</h3><span class="op-n">n = ${esc(r.n_repeats)}</span></div>
+<p class="op-mean"><span class="op-mean-value">${esc(fmt(r.mean))}</span>${r.sd === null ? "" : `<span class="op-sd"> ± ${esc(fmt(r.sd))}</span>`} <span class="op-unit">mean ${esc(m.name)}</span></p>
+${repeatStrip(r)}
+<dl class="op-stats">${stat("Range", r.range ? `${fmt(r.range[0])}–${fmt(r.range[1])}` : "–")}${stat("Accuracy", fmt(r.accuracy, 2))}${stat("Orchestration", fmt(r.orchestration))}</dl>
+${r.note ? `<p class="op-note">${esc(r.note)}</p>` : ""}
+</li>`,
+		)
+		.join("");
+	const rate = (name: string, v: number | null): string =>
+		`<div class="rate"><span>${esc(name)}</span><span class="rate-bar"><span style="width:${Math.round(Math.min(Math.max(v ?? 0, 0), 1) * 100)}%"></span></span><span>${esc(fmt(v))}</span></div>`;
+	const providers = view.cross_provider.rows
+		.map(
+			(r) => `<li class="card op-card">
+<div class="card-top"><h3>${esc(r.model)}</h3><span class="op-n">${esc(m.name)} ${esc(fmt(r.ocs))}</span></div>
+${rate("TPR", r.tpr)}${rate("FPR", r.fpr)}
+${r.profile ? `<p class="purpose">${esc(r.profile)}</p>` : ""}
+</li>`,
+		)
+		.join("");
+	const links = [
+		view.links.repo
+			? `<a class="action" href="${esc(view.links.repo)}" data-open-link="${esc(view.links.repo)}" target="_blank" rel="noopener noreferrer">OPERANT repository ↗</a>`
+			: "",
+		view.links.scorecard
+			? `<a class="action" href="${esc(view.links.scorecard)}" data-open-link="${esc(view.links.scorecard)}" target="_blank" rel="noopener noreferrer">Lab scorecard ↗</a>`
+			: "",
+	].join("");
+	return `<section class="op-metric" aria-label="The metric">
+<p class="op-formula">${esc(m.formula || m.name)}</p>
+${m.long ? `<p class="sub">${esc(m.long)}</p>` : ""}
+<p class="op-plain">${esc(m.plain)}</p>
+${strategies}
+</section>
+<h2 class="op-h2">Historical decision rows</h2>
+<p class="note">Listed in the dataset's order, not ranked.</p>
+<ul class="grid">${decision || '<li class="empty">No decision rows.</li>'}</ul>
+${providers ? `<h2 class="op-h2">${esc(view.cross_provider.title)}</h2>${view.cross_provider.caveat ? `<p class="note">${esc(view.cross_provider.caveat)}</p>` : ""}<ul class="grid">${providers}</ul>` : ""}
+${links ? `<div class="actions op-links">${links}</div>` : ""}`;
+}
+
+function scoreBar(score: DemoScore, metric: string): string {
+	return `<dl class="stats op-score" aria-label="Your calibration so far">${stat("TPR", fmt(score.tpr, 2))}${stat("FPR", fmt(score.fpr, 2))}${stat(`Your ${metric}`, fmt(score.ocs, 2))}${stat("Correct", `${score.correct}/${score.answered}`)}</dl>`;
+}
+
+function demoTab(view: AvailableOperant, state: OperantState): string {
+	const { scenarios } = view.demo;
+	const labels = view.labels;
+	if (!scenarios.length || !labels.length) {
+		return `<p class="empty">The demo scenarios are not in this build.</p>`;
+	}
+	const score = scoreDemo(scenarios, labels, state.answers);
+	const metric = view.metric.name;
+	if (state.index >= scenarios.length) {
+		const review = scenarios
+			.map((s) => {
+				const choice = state.answers[s.id] ?? "";
+				const ok = s.expected.includes(choice);
+				return `<li class="${ok ? "ok" : "miss"}"><span class="op-verdict">${ok ? "✓" : "✗"}</span> <strong>${esc(s.channel)}</strong>: you chose ${esc(choice || "nothing")}, expected ${esc(s.expected.join(" or "))}</li>`;
+			})
+			.join("");
+		const compare = view.metric.strategies
+			.map(
+				(s) => `<li>${esc(s.label)}: ${esc(metric)} ${esc(fmt(s.ocs, 2))}</li>`,
+			)
+			.join("");
+		return `<section class="op-demo">
+<h2 class="op-h2">Your calibration: ${esc(metric)} ${esc(fmt(score.ocs, 2))}</h2>
+${scoreBar(score, metric)}
+<ol class="op-review">${review}</ol>
+${compare ? `<p class="note">For comparison:</p><ul class="op-compare">${compare}</ul>` : ""}
+<div class="op-actions"><button type="button" class="op-next" data-demo-restart="1">Play again</button></div>
+</section>`;
+	}
+	const s = scenarios[state.index];
+	if (!s) return "";
+	const choice = state.answers[s.id];
+	const answered = choice !== undefined;
+	const buttons = labels
+		.map((l) => {
+			const picked = choice === l.code;
+			const cls = answered
+				? s.expected.includes(l.code)
+					? " is-expected"
+					: picked
+						? " is-wrong"
+						: ""
+				: "";
+			return `<button type="button" class="op-choice${cls}${picked ? " is-picked" : ""}" data-demo-choice="${esc(l.code)}" aria-pressed="${picked}"${answered ? " disabled" : ""}><span class="op-code">${esc(l.code)}</span><span class="op-gloss">${esc(l.gloss)}</span>${picked ? '<span class="op-pick">Your choice</span>' : ""}</button>`;
+		})
+		.join("");
+	const verdict = answered
+		? `<div class="op-result ${s.expected.includes(choice) ? "ok" : "miss"}" role="status"><p><strong>${s.expected.includes(choice) ? "Calibrated." : "Not quite."}</strong> Expected ${esc(s.expected.join(" or "))}.</p><p>${esc(s.gloss)}</p></div>
+<div class="op-actions"><button type="button" class="op-next" data-demo-next="1">${state.index + 1 < scenarios.length ? "Next case" : "See your score"}</button></div>`
+		: "";
+	return `<section class="op-demo">
+${state.index === 0 && !answered ? `<p class="op-plain">${esc(view.demo.intro)}</p>` : ""}
+${scoreBar(score, metric)}
+<p class="shown">Case ${state.index + 1} of ${scenarios.length}</p>
+<article class="card op-case"><span class="op-channel">${esc(s.channel)}</span><p class="op-scenario">${esc(s.scenario)}</p></article>
+<div class="op-choices" role="group" aria-label="Your action">${buttons}</div>
+${verdict}
+</section>`;
+}
+
+export function operantBody(view: OperantView, state: OperantState): string {
+	if (!view.available) return `<p class="empty">${esc(view.note)}</p>`;
+	const tab = (key: OperantSection, label: string): string =>
+		`<button type="button" class="chip" data-operant-tab="${key}" aria-pressed="${state.tab === key}">${esc(label)}</button>`;
+	return `<header class="head"><div><h1>${esc(view.meta.name)}</h1><p class="sub">${esc(view.meta.tagline)}</p></div></header>
+<aside class="op-caveat" aria-label="How to read these numbers"><p><strong>${esc(view.meta.claim)}</strong></p><details><summary>Research integrity</summary><p>${esc(view.caveat)}</p></details></aside>
+<div class="chips op-tabs" role="group" aria-label="Section">${tab("profiles", "Calibration profiles")}${tab("demo", "Try it yourself")}</div>
+${state.tab === "demo" ? demoTab(view, state) : profilesTab(view)}`;
 }

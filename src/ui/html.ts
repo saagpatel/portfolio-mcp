@@ -3,13 +3,20 @@
 
 import { APP_CSS, APP_SCRIPT } from "./app.generated";
 
-export type AppView = "gallery" | "timeline";
+export type AppView = "gallery" | "timeline" | "operant";
 
 export const APP_MIME_TYPE = "text/html;profile=mcp-app";
 
 const TITLES: Record<AppView, string> = {
 	gallery: "Project gallery",
 	timeline: "Project timeline",
+	operant: "OPERANT results",
+};
+
+const LOADING: Record<AppView, string> = {
+	gallery: "Loading the project gallery…",
+	timeline: "Loading the project timeline…",
+	operant: "Loading OPERANT results…",
 };
 
 /** Keep inline code from closing its own <script>/<style> element early. */
@@ -26,7 +33,7 @@ export function appHtml(view: AppView): string {
 <style>${inlineSafe(APP_CSS, "style")}</style>
 </head>
 <body>
-<main id="app"><p class="loading">Loading ${TITLES[view].toLowerCase()}…</p></main>
+<main id="app"><p class="loading">${LOADING[view]}</p></main>
 <script>${inlineSafe(APP_SCRIPT, "script")}</script>
 </body>
 </html>`;

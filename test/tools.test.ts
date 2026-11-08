@@ -369,3 +369,140 @@ describe("app views", () => {
 		]);
 	});
 });
+
+describe("operantView", () => {
+	it("reports unavailability when no OPERANT dataset is baked", () => {
+		const view = tools.operantView();
+		expect(view).toEqual({
+			view: "operant",
+			available: false,
+			note: expect.stringContaining("No public OPERANT"),
+		});
+	});
+
+	const withOperant = createTools({
+		...fixture,
+		operant: {
+			profiles: { models: [] },
+			figures: {
+				meta: {
+					name: "OPERANT",
+					tagline: "t",
+					claim: "not a leaderboard",
+					repo: "https://github.com/saagpatel/operant",
+				},
+				metric: {
+					name: "OCS",
+					formula: "OCS = TPR - FPR",
+					cant_game: {
+						strategies: [
+							{
+								key: "refuse",
+								label: "Refuse everything",
+								tpr: 1,
+								fpr: 1,
+								ocs: 0,
+								note: "n",
+							},
+							{ key: "bad", label: "No numbers" },
+						],
+					},
+				},
+				research_integrity: { public_summary: "historical calculations" },
+				decision: [
+					{
+						key: "b",
+						label: "Second <b>",
+						ocs_repeats: [0.5, "x", 0.7],
+						published: { mean: 0.6, sd: 0.1, range: [0.5, 0.7], accuracy: 0.8 },
+						orchestration: 0.9,
+					},
+					{
+						key: "a",
+						label: "First",
+						n_repeats: 1,
+						ocs_repeats: [0.9],
+						published: { mean: 0.9 },
+					},
+					{ key: "no-label" },
+				],
+				cross_provider: {
+					title: "Profiles",
+					rows: [{ model: "M", ocs: 0.8, tpr: 1, fpr: 0.2 }, { ocs: 1 }],
+				},
+				labels: [
+					{ code: "PROCEED", gloss: "Do it.", withheld: false },
+					{ code: "REFUSE", gloss: "Decline.", withheld: true },
+					{ code: "BROKEN" },
+				],
+				demo: {
+					intro: "Play",
+					scenarios: [
+						{
+							id: "g",
+							klass: "guard_warranted",
+							scenario: "Guarded",
+							expected: ["REFUSE"],
+							channel: "Ticket",
+						},
+						{
+							id: "b",
+							klass: "benign_open",
+							scenario: "Benign",
+							expected: ["PROCEED"],
+						},
+						{
+							id: "unknown-code",
+							klass: "benign_open",
+							scenario: "x",
+							expected: ["NOPE"],
+						},
+						{
+							id: "bad-klass",
+							klass: "other",
+							scenario: "x",
+							expected: ["PROCEED"],
+						},
+					],
+				},
+				links: {
+					repo: "https://github.com/saagpatel/operant",
+					note: "/notes/operant-lab-scorecard.html",
+				},
+			},
+		},
+	});
+
+	it("narrows the figures, keeps source order, and drops malformed rows", () => {
+		const view = withOperant.operantView("demo");
+		if (!view.available) throw new Error("expected an available view");
+		expect(view.section).toBe("demo");
+		// Source order, not sorted by score.
+		expect(view.decision.map((r) => r.key)).toEqual(["b", "a"]);
+		expect(view.decision[0]).toMatchObject({
+			label: "Second <b>",
+			ocs_repeats: [0.5, 0.7],
+			n_repeats: 2,
+			mean: 0.6,
+			range: [0.5, 0.7],
+			orchestration: 0.9,
+		});
+		expect(view.metric.strategies.map((s) => s.key)).toEqual(["refuse"]);
+		expect(view.cross_provider.rows.map((r) => r.model)).toEqual(["M"]);
+		expect(view.labels.map((l) => l.code)).toEqual(["PROCEED", "REFUSE"]);
+		expect(view.demo.scenarios.map((s) => [s.id, s.guarded])).toEqual([
+			["g", true],
+			["b", false],
+		]);
+		expect(view.caveat).toBe("historical calculations");
+	});
+
+	it("makes site-relative links absolute https URLs", () => {
+		const view = withOperant.operantView();
+		if (!view.available) throw new Error("expected an available view");
+		expect(view.links).toEqual({
+			repo: "https://github.com/saagpatel/operant",
+			scorecard: "https://x.dev/notes/operant-lab-scorecard.html",
+		});
+	});
+});

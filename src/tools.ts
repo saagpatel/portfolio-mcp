@@ -11,6 +11,13 @@ import type {
 	FullDoc,
 	GalleryCard,
 	IndexRecord,
+	OperantDecisionRow,
+	OperantLabel,
+	OperantProviderRow,
+	OperantScenario,
+	OperantSection,
+	OperantStrategy,
+	OperantView,
 	ProjectGalleryView,
 	ProjectRecord,
 	ProjectTimelineView,
@@ -65,6 +72,116 @@ export interface SearchResult {
 	date: string | null;
 	score: number;
 	snippet: string;
+}
+
+// ---- narrowing for the untyped OPERANT figures ----
+
+const isObj = (v: unknown): v is Record<string, unknown> =>
+	typeof v === "object" && v !== null && !Array.isArray(v);
+const str = (v: unknown): string | null =>
+	typeof v === "string" && v.trim() ? v : null;
+const num = (v: unknown): number | null =>
+	typeof v === "number" && Number.isFinite(v) ? v : null;
+const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+const strings = (v: unknown): string[] =>
+	list(v).filter((x): x is string => typeof x === "string");
+const numbers = (v: unknown): number[] =>
+	list(v).filter(
+		(x): x is number => typeof x === "number" && Number.isFinite(x),
+	);
+
+function decisionRow(v: unknown): OperantDecisionRow | null {
+	if (!isObj(v)) return null;
+	const label = str(v.label);
+	if (!label) return null;
+	const pub = isObj(v.published) ? v.published : {};
+	const range = numbers(pub.range);
+	return {
+		key: str(v.key) ?? label,
+		label,
+		n_repeats: num(v.n_repeats) ?? numbers(v.ocs_repeats).length,
+		ocs_repeats: numbers(v.ocs_repeats),
+		mean: num(pub.mean),
+		sd: num(pub.sd),
+		range: range.length === 2 ? [range[0] ?? 0, range[1] ?? 0] : null,
+		accuracy: num(pub.accuracy),
+		orchestration: num(v.orchestration),
+		note: str(v.note),
+	};
+}
+
+function providerRow(v: unknown): OperantProviderRow | null {
+	if (!isObj(v)) return null;
+	const model = str(v.model);
+	if (!model) return null;
+	return {
+		model,
+		ocs: num(v.ocs),
+		accuracy: num(v.accuracy),
+		tpr: num(v.tpr),
+		fpr: num(v.fpr),
+		profile: str(v.profile),
+	};
+}
+
+function strategy(v: unknown): OperantStrategy | null {
+	if (!isObj(v)) return null;
+	const label = str(v.label);
+	const tpr = num(v.tpr);
+	const fpr = num(v.fpr);
+	const ocs = num(v.ocs);
+	if (!label || tpr === null || fpr === null || ocs === null) return null;
+	return {
+		key: str(v.key) ?? label,
+		label,
+		tpr,
+		fpr,
+		ocs,
+		note: str(v.note) ?? "",
+	};
+}
+
+function label(v: unknown): OperantLabel | null {
+	if (!isObj(v)) return null;
+	const code = str(v.code);
+	if (!code || typeof v.withheld !== "boolean") return null;
+	return {
+		code,
+		gloss: str(v.gloss) ?? "",
+		withheld: v.withheld,
+		when: str(v.when) ?? "",
+	};
+}
+
+function scenario(v: unknown, codes: Set<string>): OperantScenario | null {
+	if (!isObj(v)) return null;
+	const id = str(v.id);
+	const text = str(v.scenario);
+	const expected = strings(v.expected).filter((c) => codes.has(c));
+	if (!id || !text || !expected.length) return null;
+	if (v.klass !== "guard_warranted" && v.klass !== "benign_open") return null;
+	return {
+		id,
+		channel: str(v.channel) ?? "",
+		guarded: v.klass === "guard_warranted",
+		scenario: text,
+		expected,
+		gloss: str(v.gloss) ?? "",
+	};
+}
+
+const present = <T>(v: T | null): v is T => v !== null;
+
+/** Only https links leave the server; site-relative paths are made absolute. */
+function siteLink(value: unknown, site: string): string | null {
+	const raw = str(value);
+	if (!raw) return null;
+	try {
+		const url = new URL(raw, site || "https://saagarpatel.dev");
+		return url.protocol === "https:" ? url.href : null;
+	} catch {
+		return null;
+	}
 }
 
 export function createTools(corpus: Corpus) {
@@ -243,6 +360,68 @@ export function createTools(corpus: Corpus) {
 		};
 	}
 
+	/** show_operant_results: OPERANT profile cards and the playable demo. */
+	function operantView(section: OperantSection = "profiles"): OperantView {
+		const op = corpus.operant;
+		const f = op?.figures;
+		if (!f) {
+			return {
+				view: "operant",
+				available: false,
+				note: "No public OPERANT dataset is baked into this server build.",
+			};
+		}
+		const meta = isObj(f.meta) ? f.meta : {};
+		const metric = isObj(f.metric) ? f.metric : {};
+		const cantGame = isObj(metric.cant_game) ? metric.cant_game : {};
+		const integrity = isObj(f.research_integrity) ? f.research_integrity : {};
+		const cross = isObj(f.cross_provider) ? f.cross_provider : {};
+		const demo = isObj(f.demo) ? f.demo : {};
+		const links = isObj(f.links) ? f.links : {};
+		const labels = list(f.labels).map(label).filter(present);
+		const codes = new Set(labels.map((l) => l.code));
+		const site = corpus.index.site;
+		return {
+			view: "operant",
+			available: true,
+			section,
+			meta: {
+				name: str(meta.name) ?? "OPERANT",
+				tagline: str(meta.tagline) ?? "",
+				claim: str(meta.claim) ?? "",
+				generated: str(meta.generated),
+				repo: siteLink(meta.repo, site),
+			},
+			metric: {
+				name: str(metric.name) ?? "OCS",
+				long: str(metric.long) ?? "",
+				formula: str(metric.formula) ?? "",
+				plain: str(metric.plain) ?? "",
+				strategies: list(cantGame.strategies).map(strategy).filter(present),
+			},
+			caveat:
+				str(integrity.public_summary) ??
+				"These rows are historical calculations, not a current leaderboard.",
+			decision: list(f.decision).map(decisionRow).filter(present),
+			cross_provider: {
+				title: str(cross.title) ?? "Cross-provider profiles",
+				caveat: str(cross.caveat) ?? "",
+				rows: list(cross.rows).map(providerRow).filter(present),
+			},
+			labels,
+			demo: {
+				intro: str(demo.intro) ?? "",
+				scenarios: list(demo.scenarios)
+					.map((v) => scenario(v, codes))
+					.filter(present),
+			},
+			links: {
+				repo: siteLink(links.repo, site),
+				scorecard: siteLink(links.note, site),
+			},
+		};
+	}
+
 	/** Archive aggregates with the untyped lists narrowed to [label, count]. */
 	function archiveSummary(): ArchiveSummary {
 		const a = corpus.projects.archive;
@@ -359,5 +538,6 @@ export function createTools(corpus: Corpus) {
 		getOperantResults,
 		projectGallery,
 		projectTimeline,
+		operantView,
 	};
 }

@@ -3,7 +3,11 @@
 // postMessage JSON-RPC from window.parent. Type-checked by tsconfig.ui.json.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { GalleryCard, ProjectGalleryView } from "../src/types";
+import type {
+	GalleryCard,
+	OperantView,
+	ProjectGalleryView,
+} from "../src/types";
 import { startApp } from "../src/ui/client";
 
 type Sent = {
@@ -369,6 +373,80 @@ describe("MCP App client", () => {
 		if (appRoot) appRoot.innerHTML = "<p>replacement</p>";
 		await flush();
 		expect(app()?.textContent).toBe("replacement");
+	});
+
+	it("plays the OPERANT demo: choose, see the verdict, finish, restart, switch tabs", async () => {
+		const view: OperantView = {
+			view: "operant",
+			available: true,
+			section: "demo",
+			meta: {
+				name: "OPERANT",
+				tagline: "",
+				claim: "Historical.",
+				generated: null,
+				repo: null,
+			},
+			metric: {
+				name: "OCS",
+				long: "",
+				formula: "OCS = TPR - FPR",
+				plain: "",
+				strategies: [],
+			},
+			caveat: "",
+			decision: [],
+			cross_provider: { title: "", caveat: "", rows: [] },
+			labels: [
+				{ code: "PROCEED", gloss: "", withheld: false, when: "" },
+				{ code: "REFUSE", gloss: "", withheld: true, when: "" },
+			],
+			demo: {
+				intro: "",
+				scenarios: [
+					{
+						id: "g",
+						channel: "Ticket",
+						guarded: true,
+						scenario: "Leak?",
+						expected: ["REFUSE"],
+						gloss: "Deny.",
+					},
+					{
+						id: "b",
+						channel: "Operator",
+						guarded: false,
+						scenario: "Tidy?",
+						expected: ["PROCEED"],
+						gloss: "Fine.",
+					},
+				],
+			},
+			links: { repo: null, scorecard: null },
+		};
+		const { fromHost } = await boot();
+		fromHost(toolResult(view));
+		const click = (selector: string) =>
+			document.querySelector<HTMLElement>(selector)?.click();
+		expect(app()?.textContent).toContain("Case 1 of 2");
+		click('[data-demo-choice="REFUSE"]');
+		expect(app()?.textContent).toContain("Calibrated.");
+		// A second choice on an answered case changes nothing.
+		click('[data-demo-choice="PROCEED"]');
+		expect(
+			document
+				.querySelector('[data-demo-choice="REFUSE"]')
+				?.getAttribute("aria-pressed"),
+		).toBe("true");
+		click("[data-demo-next]");
+		expect(app()?.textContent).toContain("Case 2 of 2");
+		click('[data-demo-choice="PROCEED"]');
+		click("[data-demo-next]");
+		expect(app()?.textContent).toContain("Your calibration: OCS 1.00");
+		click("[data-demo-restart]");
+		expect(app()?.textContent).toContain("Case 1 of 2");
+		click('[data-operant-tab="profiles"]');
+		expect(app()?.textContent).toContain("Historical decision rows");
 	});
 
 	describe("host request feedback", () => {

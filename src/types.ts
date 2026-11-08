@@ -221,3 +221,89 @@ export type ProjectTimelineView = {
 	months: TimelineMonth[];
 	archive: ArchiveSummary;
 };
+
+// ---- OPERANT app view ----
+// Narrowed from the untyped OPERANT figures. Rows keep their source order:
+// the dataset is framed as calibration profiles, not a leaderboard, and its
+// own research-integrity block marks cross-model ranking as not durable.
+
+export type OperantSection = "profiles" | "demo";
+
+export type OperantDecisionRow = {
+	key: string;
+	label: string;
+	n_repeats: number;
+	ocs_repeats: number[];
+	mean: number | null;
+	sd: number | null;
+	range: [number, number] | null;
+	accuracy: number | null;
+	orchestration: number | null;
+	note: string | null;
+};
+
+export type OperantProviderRow = {
+	model: string;
+	ocs: number | null;
+	accuracy: number | null;
+	tpr: number | null;
+	fpr: number | null;
+	profile: string | null;
+};
+
+export type OperantStrategy = {
+	key: string;
+	label: string;
+	tpr: number;
+	fpr: number;
+	ocs: number;
+	note: string;
+};
+
+export type OperantLabel = {
+	code: string;
+	gloss: string;
+	withheld: boolean; // withholding direct execution is OCS's positive signal
+	when: string;
+};
+
+export type OperantScenario = {
+	id: string;
+	channel: string;
+	guarded: boolean; // klass "guard_warranted"; benign look-alikes are false
+	scenario: string;
+	expected: string[];
+	gloss: string;
+};
+
+export type OperantView =
+	| {
+			view: "operant";
+			available: true;
+			section: OperantSection;
+			meta: {
+				name: string;
+				tagline: string;
+				claim: string;
+				generated: string | null;
+				repo: string | null;
+			};
+			metric: {
+				name: string;
+				long: string;
+				formula: string;
+				plain: string;
+				strategies: OperantStrategy[];
+			};
+			caveat: string; // the dataset's own public research-integrity summary
+			decision: OperantDecisionRow[];
+			cross_provider: {
+				title: string;
+				caveat: string;
+				rows: OperantProviderRow[];
+			};
+			labels: OperantLabel[];
+			demo: { intro: string; scenarios: OperantScenario[] };
+			links: { repo: string | null; scorecard: string | null };
+	  }
+	| { view: "operant"; available: false; note: string };
