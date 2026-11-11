@@ -243,6 +243,12 @@ Override paths with `--manifest=`/`--key=`/`--pub=`/`--sig=`.
 Commit the `.sig` + `mcp-ed25519.pub` (never the private key) into portfolio-index next to the manifest, then
 redeploy the site. Re-run `sign` whenever the manifest changes (it signs the exact served bytes).
 
+For verification, configure `MCP_TRUSTED_PUBLISHER_PUB` to an independently provisioned public-key
+file, then run `npm run sign:verify`. This invokes `mcp-kit-sign verify-pinned` once and accepts only
+its JSON result for the independent-publisher-pin policy. The adjacent bundle key is not a trust root;
+missing pins, invalid signatures, or an older CLI that does not report this policy fail closed. Key
+selection and provisioning remain an operator responsibility.
+
 ## Audit posture
 
 Designed to pass `MCPAudit` / `mcp-trust` (Saagar's own tools): only the inbound MCP
