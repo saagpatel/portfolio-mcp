@@ -64,7 +64,7 @@
 		"@biomejs/biome": "2.5.15",
 		"@cloudflare/workers-types": "^5",
 		"@types/node": "24.19.2",
-		"esbuild": "0.28.1",
+		"esbuild": "0.28.2",
 		"happy-dom": "21.0.4",
 		"saagar-mcp-kit": "git+https://github.com/saagpatel/mcp-kit.git#64e281fe32a3915ffe0afb5bbf080dbdc9095c98",
 		"typescript": "^7",
