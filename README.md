@@ -130,8 +130,8 @@ protocol test, smoke, parity, and a package-content check. See
 the local Worker.
 
 `npm run build:corpus` regenerates source from a sibling checkout or an explicit
-network URL; URL-mode builds omit OPERANT because its build inputs are not
-published. The builder requires projects marked `public: true`, document titles,
+network URL. The public site does not serve the OPERANT inputs, so a URL build
+from it omits OPERANT; a custom URL can serve both files. The builder requires projects marked `public: true`, document titles,
 and matching per-type counts. Index references must stay within their artifact
 directory. Both OPERANT files must be present together or both absent.
 Corpus generation is not required for ordinary fixture verification. `npm run
@@ -271,8 +271,9 @@ Node.js 24.21.0, npm 12.2.0, TypeScript, Cloudflare Workers, and the MCP SDK.
 
 ### Known risks
 
-URL-mode corpus builds omit OPERANT, whose inputs are only available to local
-corpus builds. Worker deployment and package publication are not part of local
+A URL-mode corpus build from the public site omits OPERANT, because the site
+does not serve its inputs; a source that serves only one of the two files fails
+the build. Worker deployment and package publication are not part of local
 verification.
 
 ### Next steps
