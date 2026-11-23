@@ -46,7 +46,9 @@ export function parseArgs(argv) {
 			out.allowPendingTools = true;
 			continue;
 		}
-		const [key, inlineValue] = arg.split("=", 2);
+		const separator = arg.indexOf("=");
+		const key = separator === -1 ? arg : arg.slice(0, separator);
+		const inlineValue = separator === -1 ? undefined : arg.slice(separator + 1);
 		const value = inlineValue ?? argv[i + 1];
 		if (
 			arg.startsWith("--") &&
