@@ -225,6 +225,34 @@ describe("listCorpus", () => {
 });
 
 describe("getProfile", () => {
+	it.each([
+		["  ## What I'm working on now ##", "## Contact"],
+		["## What I'm working on now", "# Contact"],
+		["## What I'm working on now", "  ## Contact"],
+	])("extracts current work between %s and %s", (opening, closing) => {
+		const data = structuredClone(fixture);
+		data.documents["about/index"].body_markdown =
+			`${opening}\nCurrent work.\n${closing}\nOther text.`;
+		expect(createTools(data).getProfile().now).toBe("Current work.");
+	});
+
+	it.each(["\n", "\r\n"])(
+		"preserves an indented code block with %j line endings",
+		(newline) => {
+			const data = structuredClone(fixture);
+			const code = ["    first()", "    second()  "].join(newline);
+			data.documents["about/index"].body_markdown = [
+				"## What I'm working on now",
+				" \t",
+				code,
+				"\t",
+				"",
+				"## Contact",
+			].join(newline);
+			expect(createTools(data).getProfile().now).toBe(code);
+		},
+	);
+
 	it.each(["```", "~~~~"])(
 		"preserves headings inside a %s fenced example",
 		(fence) => {

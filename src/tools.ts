@@ -255,17 +255,24 @@ export function createTools(corpus: Corpus) {
 				: undefined;
 		const about = body("about/index") ?? "";
 		const sectionBody = (heading: string) => {
-			const lines: string[] = [];
+			let start: number | undefined;
+			let end = 0;
 			let active = false;
 			let fence = "";
-			for (const line of about.split("\n")) {
-				const title = !fence && /^##[ \t]+(.*)/.exec(line);
+			for (const match of about.matchAll(/[^\r\n]+/g)) {
+				const line = match[0];
+				const title = !fence && /^ {0,3}(#{1,2})(?:[ \t]+(.*)|$)/.exec(line);
 				if (title) {
 					if (active) break;
-					active = title[1].trimEnd() === heading;
+					active =
+						title[1] === "##" &&
+						title[2]?.trimEnd().replace(/[ \t]+#+$/, "") === heading;
 					continue;
 				}
-				if (active) lines.push(line);
+				if (active && /[^ \t]/.test(line)) {
+					start ??= match.index;
+					end = match.index + line.length;
+				}
 				const marker = /^ {0,3}(`{3,}|~{3,})(.*)/.exec(line);
 				if (!marker) continue;
 				const [, run, info] = marker;
@@ -275,7 +282,7 @@ export function createTools(corpus: Corpus) {
 					fence = run;
 				}
 			}
-			return lines.join("\n").trim();
+			return about.slice(start, end);
 		};
 		return {
 			name: corpus.index.title,
