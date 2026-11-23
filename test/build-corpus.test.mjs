@@ -1,4 +1,12 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+	mkdtemp,
+	mkdir,
+	readFile,
+	rename,
+	rm,
+	symlink,
+	writeFile,
+} from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -52,6 +60,31 @@ afterEach(async () => {
 });
 
 describe("build-corpus", () => {
+	it.each(["corpus", "corpus-other"])(
+		"checks a local document symlink resolving into %s",
+		async (directory) => {
+			const root = await fixture();
+			const document = join(root, "corpus/writing/example.json");
+			const target = join(root, directory, "target.json");
+			await mkdir(join(root, directory), { recursive: true });
+			await rename(document, target);
+			await symlink(target, document);
+			const output = join(root, "generated.ts");
+			const result = run(root, output);
+			if (directory === "corpus") {
+				expect(result.status).toBe(0);
+				expect(await readFile(output, "utf8")).toContain("Public text.");
+			} else {
+				expect(result.status).toBe(1);
+				expect(result.stderr).toContain(
+					"corpus/writing/example.json: resolved path is outside corpus",
+				);
+				await expect(readFile(output)).rejects.toMatchObject({
+					code: "ENOENT",
+				});
+			}
+		},
+	);
 	it.each(["document", "profile"])(
 		"rejects a noncanonical %s reference before reading it",
 		async (kind) => {
@@ -124,18 +157,21 @@ describe("build-corpus", () => {
 			"corpus-index.json: expected essay count 1",
 		);
 	});
-	it("rejects a missing index title even when the full document has one", async () => {
-		const root = await fixture();
-		const path = join(root, "corpus-index.json");
-		const index = JSON.parse(await readFile(path, "utf8"));
-		delete index.documents[0].title;
-		await writeFile(path, JSON.stringify(index));
-		const result = run(root, join(root, "generated.ts"));
-		expect(result.status).toBe(1);
-		expect(result.stderr).toContain(
-			"corpus-index.json: document writing/example title must be a string",
-		);
-	});
+	it.each([undefined, "", " \t "])(
+		"rejects invalid index title %j even when the full document has one",
+		async (title) => {
+			const root = await fixture();
+			const path = join(root, "corpus-index.json");
+			const index = JSON.parse(await readFile(path, "utf8"));
+			index.documents[0].title = title;
+			await writeFile(path, JSON.stringify(index));
+			const result = run(root, join(root, "generated.ts"));
+			expect(result.status).toBe(1);
+			expect(result.stderr).toContain(
+				"corpus-index.json: document writing/example title must be a nonblank string",
+			);
+		},
+	);
 	it.each(["corpus/writing/example.json", "repo-profiles/example.json"])(
 		"rejects an HTTP redirect for indexed artifact %s",
 		async (redirected) => {
@@ -183,22 +219,26 @@ describe("build-corpus", () => {
 			}
 		},
 	);
-	it("rejects a document without a title", async () => {
-		const root = await fixture();
-		await writeFile(
-			join(root, "corpus/writing/example.json"),
-			JSON.stringify({
-				id: "writing/example",
-				type: "essay",
-				body_markdown: "",
-			}),
-		);
-		const result = run(root, join(root, "generated.ts"));
-		expect(result.status).toBe(1);
-		expect(result.stderr).toContain(
-			"corpus/writing/example.json: title must be a string",
-		);
-	});
+	it.each([undefined, "", " \t "])(
+		"rejects invalid full document title %j",
+		async (title) => {
+			const root = await fixture();
+			await writeFile(
+				join(root, "corpus/writing/example.json"),
+				JSON.stringify({
+					id: "writing/example",
+					type: "essay",
+					title,
+					body_markdown: "",
+				}),
+			);
+			const result = run(root, join(root, "generated.ts"));
+			expect(result.status).toBe(1);
+			expect(result.stderr).toContain(
+				"corpus/writing/example.json: title must be a nonblank string",
+			);
+		},
+	);
 	it("rejects projects without public consent", async () => {
 		const root = await fixture();
 		await writeFile(

@@ -146,9 +146,9 @@ async function loadCorpus(read, readOptional) {
 function validateCorpus(corpus) {
 	const tally = new Map();
 	for (const item of corpus.index.documents) {
-		if (typeof item.title !== "string") {
+		if (typeof item.title !== "string" || !item.title.trim()) {
 			throw new Error(
-				`corpus-index.json: document ${item.id} title must be a string`,
+				`corpus-index.json: document ${item.id} title must be a nonblank string`,
 			);
 		}
 		if (typeof item.type !== "string") {
@@ -161,8 +161,10 @@ function validateCorpus(corpus) {
 				`corpus/${item.id}.json: document id does not match index`,
 			);
 		}
-		if (typeof document.title !== "string") {
-			throw new Error(`corpus/${item.id}.json: title must be a string`);
+		if (typeof document.title !== "string" || !document.title.trim()) {
+			throw new Error(
+				`corpus/${item.id}.json: title must be a nonblank string`,
+			);
 		}
 		if (typeof document.body_markdown !== "string") {
 			throw new Error(`corpus/${item.id}.json: body_markdown must be a string`);
