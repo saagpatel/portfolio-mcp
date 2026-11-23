@@ -225,6 +225,28 @@ describe("listCorpus", () => {
 });
 
 describe("getProfile", () => {
+	it.each(["```", "~~~~"])(
+		"preserves headings inside a %s fenced example",
+		(fence) => {
+			const data = structuredClone(fixture);
+			const now = [
+				"First paragraph.",
+				"",
+				`${fence}markdown`,
+				"## What I build with",
+				"Example text.",
+				fence,
+				"",
+				"Last paragraph.",
+			].join("\n");
+			data.documents["about/index"].body_markdown =
+				`## What I'm working on now\n\n${now}\n\n## What I build with\n\nActual tools.`;
+			expect(createTools(data).getProfile()).toMatchObject({
+				now,
+				uses: "Actual tools.",
+			});
+		},
+	);
 	it("uses the matching About sections when standalone pages are absent", () => {
 		const data = structuredClone(fixture);
 		const now = "Current work.\n\n### Next\n\nA milestone.";

@@ -254,12 +254,28 @@ export function createTools(corpus: Corpus) {
 				? corpus.documents[id].body_markdown
 				: undefined;
 		const about = body("about/index") ?? "";
-		const sections = about.split(/^##[ \t]+/m).slice(1);
 		const sectionBody = (heading: string) => {
-			const section = sections.find(
-				(text) => text.split("\n", 1)[0].trimEnd() === heading,
-			);
-			return section?.slice(heading.length).trim() ?? "";
+			const lines: string[] = [];
+			let active = false;
+			let fence = "";
+			for (const line of about.split("\n")) {
+				const title = !fence && /^##[ \t]+(.*)/.exec(line);
+				if (title) {
+					if (active) break;
+					active = title[1].trimEnd() === heading;
+					continue;
+				}
+				if (active) lines.push(line);
+				const marker = /^ {0,3}(`{3,}|~{3,})(.*)/.exec(line);
+				if (!marker) continue;
+				const [, run, info] = marker;
+				if (fence) {
+					if (run.startsWith(fence) && !info.trim()) fence = "";
+				} else if (run[0] === "~" || !info.includes("`")) {
+					fence = run;
+				}
+			}
+			return lines.join("\n").trim();
 		};
 		return {
 			name: corpus.index.title,
