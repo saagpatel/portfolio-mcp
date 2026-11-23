@@ -2,8 +2,14 @@
 // Bake public Layer 0 corpus artifacts into src/corpus.generated.ts.
 
 import { randomUUID } from "node:crypto";
-import { readFile, rename, unlink, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import {
+	readFile,
+	realpath,
+	rename,
+	unlink,
+	writeFile,
+} from "node:fs/promises";
+import { join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const args = process.argv.slice(2);
@@ -26,6 +32,20 @@ function errorWithFile(error, file) {
 	);
 }
 
+// These references become both filesystem paths and URL paths. Keep each
+// segment literal so both readers resolve it beneath the supplied directory.
+function validateReference(reference, indexFile) {
+	const segments = reference.split("/");
+	if (
+		/[\\%?#:]|\p{Cc}/u.test(reference) ||
+		segments.some((part) => part === "" || part === "." || part === "..")
+	) {
+		throw new Error(
+			`${indexFile}: invalid artifact reference ${JSON.stringify(reference)}`,
+		);
+	}
+}
+
 async function loadCorpus(read, readOptional) {
 	const index = await read("corpus-index.json");
 	if (!Array.isArray(index?.documents)) {
@@ -39,9 +59,13 @@ async function loadCorpus(read, readOptional) {
 		if (Object.hasOwn(documents, item.id)) {
 			throw new Error(`corpus-index.json: duplicate document id ${item.id}`);
 		}
-		documents[item.id] = await read(`corpus/${item.id}.json`);
+		validateReference(item.id, "corpus-index.json");
+		documents[item.id] = await read(`corpus/${item.id}.json`, "corpus");
 	}
 	const projects = await read("projects-data.json");
+	if (projects?.public !== true) {
+		throw new Error("projects-data.json: public must be true");
+	}
 	if (
 		!projects?.curated ||
 		typeof projects.curated !== "object" ||
@@ -55,8 +79,8 @@ async function loadCorpus(read, readOptional) {
 
 	const repoProfileIndex = await readOptional("repo-profiles/index.json");
 	let repoProfiles = null;
-	if (repoProfileIndex) {
-		if (!Array.isArray(repoProfileIndex.profiles)) {
+	if (repoProfileIndex !== undefined) {
+		if (!Array.isArray(repoProfileIndex?.profiles)) {
 			throw new Error("repo-profiles/index.json: expected a profiles array");
 		}
 		const profiles = Object.create(null);
@@ -76,7 +100,11 @@ async function loadCorpus(read, readOptional) {
 					`repo-profiles/index.json: duplicate repo_id ${item.repo_id}`,
 				);
 			}
-			const profile = await read(`repo-profiles/${item.profile_json}`);
+			validateReference(item.profile_json, "repo-profiles/index.json");
+			const profile = await read(
+				`repo-profiles/${item.profile_json}`,
+				"repo-profiles",
+			);
 			if (profile?.repo_id !== item.repo_id) {
 				throw new Error(
 					`repo-profiles/${item.profile_json}: repo_id does not match index entry ${item.repo_id}`,
@@ -87,31 +115,48 @@ async function loadCorpus(read, readOptional) {
 		repoProfiles = { index: repoProfileIndex, profiles };
 	}
 
-	const profiles = await readOptional(
-		"scripts/sources/operant/calibration-profiles.json",
-	);
-	const figures = await readOptional(
-		"scripts/sources/operant/operant-figures.json",
-	);
+	const profilesFile = "scripts/sources/operant/calibration-profiles.json";
+	const figuresFile = "scripts/sources/operant/operant-figures.json";
+	const profiles = await readOptional(profilesFile);
+	const figures = await readOptional(figuresFile);
+	let operant = null;
+	if (profiles !== undefined || figures !== undefined) {
+		if (profiles === undefined || figures === undefined) {
+			const missing = profiles === undefined ? profilesFile : figuresFile;
+			throw new Error(`${missing}: both OPERANT files are required`);
+		}
+		if (!Array.isArray(profiles?.models)) {
+			throw new Error(`${profilesFile}: expected a models array`);
+		}
+		if (!figures || typeof figures !== "object" || Array.isArray(figures)) {
+			throw new Error(`${figuresFile}: expected a figures object`);
+		}
+		operant = { profiles, figures };
+	}
 	return {
 		index,
 		documents,
 		projects,
 		repoProfiles,
-		operant: profiles && figures ? { profiles, figures } : null,
+		operant,
 	};
 }
 
 function validateCorpus(corpus) {
+	const tally = new Map();
 	for (const item of corpus.index.documents) {
 		if (typeof item.type !== "string") {
 			throw new Error(`corpus-index.json: document ${item.id} has no type`);
 		}
+		tally.set(item.type, (tally.get(item.type) ?? 0) + 1);
 		const document = corpus.documents[item.id];
 		if (!document || document.id !== item.id) {
 			throw new Error(
 				`corpus/${item.id}.json: document id does not match index`,
 			);
+		}
+		if (typeof document.title !== "string") {
+			throw new Error(`corpus/${item.id}.json: title must be a string`);
 		}
 		if (typeof document.body_markdown !== "string") {
 			throw new Error(`corpus/${item.id}.json: body_markdown must be a string`);
@@ -119,6 +164,18 @@ function validateCorpus(corpus) {
 		if (document.type !== item.type) {
 			throw new Error(
 				`corpus/${item.id}.json: type does not match corpus-index.json`,
+			);
+		}
+	}
+	const { counts } = corpus.index;
+	if (!counts || typeof counts !== "object" || Array.isArray(counts)) {
+		throw new Error("corpus-index.json: expected a counts object");
+	}
+	for (const type of new Set([...tally.keys(), ...Object.keys(counts)])) {
+		const expected = tally.get(type) ?? 0;
+		if (counts[type] !== expected) {
+			throw new Error(
+				`corpus-index.json: expected ${type} count ${expected}, got ${counts[type]}`,
 			);
 		}
 	}
@@ -135,9 +192,17 @@ function validateCorpus(corpus) {
 
 async function main() {
 	const root = resolve(dirArg);
-	const readDir = async (file) => {
+	const readDir = async (file, artifactDir) => {
 		try {
-			return JSON.parse(await readFile(join(root, file), "utf8"));
+			let path = join(root, file);
+			if (artifactDir) {
+				path = await realpath(path);
+				const directory = join(await realpath(root), artifactDir);
+				if (!path.startsWith(directory + sep)) {
+					throw new Error(`resolved path is outside ${artifactDir}`);
+				}
+			}
+			return JSON.parse(await readFile(path, "utf8"));
 		} catch (error) {
 			if (file === "corpus-index.json" && error?.code === "ENOENT") {
 				throw new Error(
@@ -153,14 +218,15 @@ async function main() {
 			return await readDir(file);
 		} catch (error) {
 			if (error?.cause?.code === "ENOENT" || error?.code === "ENOENT")
-				return null;
+				return undefined;
 			throw error;
 		}
 	};
 	const readUrl = async (base, file, optional = false) => {
 		try {
-			const response = await fetch(`${base.replace(/\/$/, "")}/${file}`);
-			if (optional && response.status === 404) return null;
+			const path = file.split("/").map(encodeURIComponent).join("/");
+			const response = await fetch(`${base.replace(/\/$/, "")}/${path}`);
+			if (optional && response.status === 404) return undefined;
 			if (!response.ok) throw new Error(`GET ${file} -> ${response.status}`);
 			return await response.json();
 		} catch (error) {
