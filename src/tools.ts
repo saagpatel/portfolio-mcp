@@ -249,17 +249,25 @@ export function createTools(corpus: Corpus) {
 		now: string;
 		uses: string;
 	} {
-		const body = (id: string): string =>
+		const body = (id: string) =>
 			Object.hasOwn(corpus.documents, id)
-				? (corpus.documents[id]?.body_markdown ?? "")
-				: "";
+				? corpus.documents[id].body_markdown
+				: undefined;
+		const about = body("about/index") ?? "";
+		const sections = about.split(/^##[ \t]+/m).slice(1);
+		const sectionBody = (heading: string) => {
+			const section = sections.find(
+				(text) => text.split("\n", 1)[0].trimEnd() === heading,
+			);
+			return section?.slice(heading.length).trim() ?? "";
+		};
 		return {
 			name: corpus.index.title,
 			summary: corpus.index.summary,
 			site: corpus.index.site,
-			about: body("about/index"),
-			now: body("now/index"),
-			uses: body("uses/index"),
+			about,
+			now: body("now/index") ?? sectionBody("What I'm working on now"),
+			uses: body("uses/index") ?? sectionBody("What I build with"),
 		};
 	}
 

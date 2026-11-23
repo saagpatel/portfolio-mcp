@@ -225,6 +225,21 @@ describe("listCorpus", () => {
 });
 
 describe("getProfile", () => {
+	it("uses the matching About sections when standalone pages are absent", () => {
+		const data = structuredClone(fixture);
+		const now = "Current work.\n\n### Next\n\nA milestone.";
+		const uses = "Tools.\n\n### Languages\n\nTypeScript.";
+		const about = `## What I'm working on now\n\n${now}\n\n## What I build with\n\n${uses}\n\n## Contact\n\nOther text.`;
+		data.documents["about/index"].body_markdown = about;
+		expect(createTools(data).getProfile()).toMatchObject({ about, now, uses });
+
+		data.documents["now/index"] = {
+			...data.documents["about/index"],
+			id: "now/index",
+			body_markdown: "Standalone",
+		};
+		expect(createTools(data).getProfile().now).toBe("Standalone");
+	});
 	it("pulls name + about body", () => {
 		const p = tools.getProfile();
 		expect(p.name).toBe("Saagar");
