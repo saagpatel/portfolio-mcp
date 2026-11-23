@@ -31,7 +31,24 @@ export function parseGenerated(text) {
 	if (start === -1 || end === -1 || end < start) {
 		throw new Error("not a generated corpus file (corpus literal not found)");
 	}
-	return JSON.parse(text.slice(start + PREFIX.length, end));
+	const corpus = JSON.parse(text.slice(start + PREFIX.length, end));
+	if (!isObject(corpus)) throw new Error("expected a generated corpus object");
+	const invalid = ["index", "documents", "projects"].filter(
+		(key) => !isObject(corpus[key]),
+	);
+	if (invalid.length)
+		throw new Error(
+			`missing or invalid corpus sections: ${invalid.join(", ")}`,
+		);
+	if (
+		!Array.isArray(corpus.index.documents) ||
+		!isObject(corpus.projects.curated)
+	) {
+		throw new Error(
+			"expected an index.documents array and a projects.curated object",
+		);
+	}
+	return corpus;
 }
 
 const isObject = (value) =>
@@ -55,7 +72,7 @@ const SECTIONS = [
 		title: (d) => d?.title,
 	},
 	{ label: "Index fields", get: (c) => omit(c.index, ["documents"]) },
-	{ label: "Curated projects", get: (c) => c.projects?.curated },
+	{ label: "Curated projects", get: (c) => c.projects?.curated, ordered: true },
 	{ label: "Projects fields", get: (c) => omit(c.projects, ["curated"]) },
 	{
 		label: "Repo profiles",
@@ -121,11 +138,22 @@ function entryChange(before, after) {
 /** Own keys only: a key such as "constructor" is data, not Object.prototype. */
 const has = (object, key) => isObject(object) && Object.hasOwn(object, key);
 
-function diffKeyed(before, after, title) {
+// Compare surviving keys so additions and removals alone are not reorders.
+function orderChanged(before, after) {
+	const oldKeys = new Set(before);
+	const newKeys = new Set(after);
+	return !same(
+		before.filter((key) => newKeys.has(key)),
+		after.filter((key) => oldKeys.has(key)),
+	);
+}
+
+function diffKeyed(before, after, title, ordered = false) {
 	const a = isObject(before) ? before : {};
 	const b = isObject(after) ? after : {};
 	const titled = (key, entry) => ({ key, title: title?.(entry) ?? null });
 	return {
+		order: ordered && orderChanged(Object.keys(a), Object.keys(b)),
 		added: Object.keys(b)
 			.filter((key) => !has(a, key))
 			.map((key) => titled(key, b[key])),
@@ -174,11 +202,9 @@ function diffList(section, before, after) {
 			fields: entry.fields.filter((f) => !mirrored(entry.key, f.name)),
 		}))
 		.filter((entry) => entry.value || entry.fields.length > 0);
-	// Order of the entries present on both sides; additions and removals alone
-	// do not count as a reorder.
-	const order = !same(
-		ids(section.list(before)).filter((key) => has(la, key)),
-		ids(section.list(after)).filter((key) => has(lb, key)),
+	const order = orderChanged(
+		ids(section.list(before)),
+		ids(section.list(after)),
 	);
 	return { added, removed, changed, order };
 }
@@ -196,8 +222,12 @@ export function summarize(before, after) {
 		sections: [
 			...SECTIONS.map((section) => ({
 				label: section.label,
-				order: false,
-				...diffKeyed(section.get(before), section.get(after), section.title),
+				...diffKeyed(
+					section.get(before),
+					section.get(after),
+					section.title,
+					section.ordered,
+				),
 			})),
 			...LIST_SECTIONS.map((section) => ({
 				label: section.label,
