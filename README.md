@@ -32,18 +32,18 @@ SSRF / exfil surface).
 
 | Tool | Purpose |
 |---|---|
-| `search` | BM25 over the whole corpus; optional `section` filter, `limit` |
+| `search` | BM25 search for `query` across the corpus, with optional `section` and `limit` |
 | `get_document` | Full Markdown of one document by `id` |
 | `list_corpus` | The table of contents; optional `type` filter |
-| `get_profile` | The "who is this" card (about / now / uses) |
-| `list_projects` | Curated public-safe projects + anonymized aggregates |
-| `list_repo_profiles` | Public-safe repo profile index with freshness and proof counts |
+| `get_profile` | About, now, and uses. Missing standalone pages draw their text from the corresponding About sections |
+| `list_projects` | Curated public-safe projects and anonymized aggregates, with optional `status` and `limit` |
+| `list_repo_profiles` | Public-safe repo profile index with freshness and proof counts, with optional `attentionState` and `limit` |
 | `get_repo_profile` | One repo answering profile by the `repoId` argument |
 | `get_operant_results` | Public, sanitized OPERANT calibration results (per-model OCS) |
 | `show_project_gallery` | Curated projects as gallery cards (MCP App); optional `status`, `lifecycle` |
 | `show_project_timeline` | Curated projects by last-active month, with archive lifecycle mix (MCP App) |
 | `show_operant_results` | OPERANT calibration-profile cards plus a playable demo scored with OCS (MCP App); optional `section` |
-| `play_demo` | The site's playable demos rebuilt from their corpus pages (MCP App): `interleaving` or `failure-museum` |
+| `play_demo` | Play a corpus demo (MCP App). Optional `demo` selects `interleaving` (default) or `failure-museum` |
 
 ## MCP Apps
 
@@ -131,7 +131,10 @@ the local Worker.
 
 `npm run build:corpus` regenerates source from a sibling checkout or an explicit
 network URL; URL-mode builds omit OPERANT because its build inputs are not
-published. Corpus generation is not required for ordinary fixture verification. `npm run
+published. The builder requires projects marked `public: true`, document titles,
+and matching per-type counts. Index references must stay within their artifact
+directory. Both OPERANT files must be present together or both absent.
+Corpus generation is not required for ordinary fixture verification. `npm run
 probe:mcp` targets the live Worker by default, and the connected audit starts a
 local Worker and invokes the separately installed `mcp-audit` CLI. Keep those
 separate from local gates; deployment and signing remain operator-gated as
@@ -156,8 +159,8 @@ committed corpus is always exactly what the committed generator makes from the
 pinned source. Never edit the generated file by hand. On a PR that changes the
 corpus, the same job writes a re-bake summary to its job summary: documents,
 curated projects, repo profiles and OPERANT figures added, removed or changed,
-with the fields that changed, plus any change or reorder in the index lists
-that a document or profile record does not already account for. That is the
+with the fields that changed, plus curated project reorders and changes in
+the index lists that a document or profile record does not already account for. That is the
 readable account of a re-bake whose git diff is one 1.6 MB line. It never
 fails the job: if it cannot read or parse a corpus file (say, after a generator
 change to the file's wrapper), the step shows as failed and the job's result

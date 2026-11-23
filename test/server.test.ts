@@ -2,6 +2,7 @@
 // (stateless streamable HTTP, JSON responses). Verifies the transport wiring, the
 // tools, the MCP App resources, and the resources against the baked corpus.
 
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import handler from "../src/index";
 
@@ -16,6 +17,8 @@ type RpcResponse = {
 		serverInfo?: { name?: string };
 		tools?: Array<{
 			name: string;
+			description?: string;
+			inputSchema: { properties?: Record<string, unknown> };
 			annotations?: { readOnlyHint?: boolean };
 			_meta?: Record<string, unknown>;
 		}>;
@@ -80,6 +83,26 @@ const init = () =>
 	});
 
 describe("MCP server over the Worker fetch handler", () => {
+	it("documents every registered input in the README tool table", async () => {
+		const { json } = await rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" });
+		const rows = readFileSync("README.md", "utf8").split("\n");
+		const missing: string[] = [];
+		for (const tool of resultOf(json).tools ?? []) {
+			const row = rows.find((line) => line.startsWith(`| \`${tool.name}\` |`));
+			expect(row, tool.name).toBeDefined();
+			for (const key of Object.keys(tool.inputSchema.properties ?? {})) {
+				if (!row?.includes(`\`${key}\``)) missing.push(`${tool.name}.${key}`);
+			}
+		}
+		expect(missing).toEqual([]);
+	});
+	it("advertises the OPERANT unavailable response key", async () => {
+		const { json } = await rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" });
+		const tool = resultOf(json).tools?.find(
+			(t) => t.name === "get_operant_results",
+		);
+		expect(tool?.description).toContain("available=false");
+	});
 	it("rejects non-/mcp paths with 404", async () => {
 		const res = await handler.fetch(
 			new Request("http://localhost/", { method: "GET" }),

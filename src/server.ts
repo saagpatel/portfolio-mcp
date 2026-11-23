@@ -220,7 +220,7 @@ export function buildServer(): McpServer {
 			description:
 				"Return the public, sanitized OPERANT results: per-model operator-calibration-score (OCS) " +
 				"profiles, the headline figures, and the calibration-profiles (not a flat leaderboard) framing. " +
-				"Sourced from the published OPERANT mirror. Returns availability=false if no dataset was baked.",
+				"Sourced from the published OPERANT mirror. Returns available=false if no dataset was baked.",
 			inputSchema: {},
 			annotations: { readOnlyHint: true, openWorldHint: false },
 		},
