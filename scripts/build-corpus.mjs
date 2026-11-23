@@ -69,6 +69,7 @@ async function loadCorpus(read, readOptional) {
 	if (
 		!projects?.curated ||
 		typeof projects.curated !== "object" ||
+		Array.isArray(projects.curated) ||
 		!projects.archive ||
 		typeof projects.archive !== "object"
 	) {
@@ -145,6 +146,11 @@ async function loadCorpus(read, readOptional) {
 function validateCorpus(corpus) {
 	const tally = new Map();
 	for (const item of corpus.index.documents) {
+		if (typeof item.title !== "string") {
+			throw new Error(
+				`corpus-index.json: document ${item.id} title must be a string`,
+			);
+		}
 		if (typeof item.type !== "string") {
 			throw new Error(`corpus-index.json: document ${item.id} has no type`);
 		}
@@ -222,10 +228,12 @@ async function main() {
 			throw error;
 		}
 	};
-	const readUrl = async (base, file, optional = false) => {
+	const readUrl = async (file, artifactDir, optional = false) => {
 		try {
 			const path = file.split("/").map(encodeURIComponent).join("/");
-			const response = await fetch(`${base.replace(/\/$/, "")}/${path}`);
+			const response = await fetch(`${urlArg.replace(/\/$/, "")}/${path}`, {
+				redirect: artifactDir ? "error" : "follow",
+			});
 			if (optional && response.status === 404) return undefined;
 			if (!response.ok) throw new Error(`GET ${file} -> ${response.status}`);
 			return await response.json();
@@ -234,10 +242,7 @@ async function main() {
 		}
 	};
 	const corpus = urlArg
-		? await loadCorpus(
-				(file) => readUrl(urlArg, file),
-				(file) => readUrl(urlArg, file, true),
-			)
+		? await loadCorpus(readUrl, (file) => readUrl(file, undefined, true))
 		: await loadCorpus(readDir, readDirOptional);
 	validateCorpus(corpus);
 

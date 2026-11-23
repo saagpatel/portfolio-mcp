@@ -25,7 +25,7 @@ async function workspace() {
 		join(source, "corpus-index.json"),
 		JSON.stringify({
 			counts: { essay: 1 },
-			documents: [{ id: "writing/example", type: "essay" }],
+			documents: [{ id: "writing/example", type: "essay", title: "Example" }],
 		}),
 	);
 	await writeFile(

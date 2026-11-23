@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const script = resolve("scripts/build-corpus.mjs");
 const temporaryDirs = [];
@@ -14,7 +14,9 @@ async function fixture() {
 		join(root, "corpus-index.json"),
 		JSON.stringify({
 			counts: { essay: 1 },
-			documents: [{ id: "writing/example", type: "essay" }],
+			documents: [
+				{ id: "writing/example", type: "essay", title: "Index title" },
+			],
 		}),
 	);
 	await writeFile(
@@ -112,7 +114,7 @@ describe("build-corpus", () => {
 		await writeFile(
 			join(root, "corpus-index.json"),
 			JSON.stringify({
-				documents: [{ id: "writing/example", type: "essay" }],
+				documents: [{ id: "writing/example", type: "essay", title: "Example" }],
 				counts: { essay: 0 },
 			}),
 		);
@@ -122,6 +124,65 @@ describe("build-corpus", () => {
 			"corpus-index.json: expected essay count 1",
 		);
 	});
+	it("rejects a missing index title even when the full document has one", async () => {
+		const root = await fixture();
+		const path = join(root, "corpus-index.json");
+		const index = JSON.parse(await readFile(path, "utf8"));
+		delete index.documents[0].title;
+		await writeFile(path, JSON.stringify(index));
+		const result = run(root, join(root, "generated.ts"));
+		expect(result.status).toBe(1);
+		expect(result.stderr).toContain(
+			"corpus-index.json: document writing/example title must be a string",
+		);
+	});
+	it.each(["corpus/writing/example.json", "repo-profiles/example.json"])(
+		"rejects an HTTP redirect for indexed artifact %s",
+		async (redirected) => {
+			const root = await fixture();
+			await mkdir(join(root, "repo-profiles"));
+			await writeFile(
+				join(root, "repo-profiles/index.json"),
+				JSON.stringify({
+					profile_count: 1,
+					profiles: [{ repo_id: "example", profile_json: "example.json" }],
+				}),
+			);
+			await writeFile(
+				join(root, "repo-profiles/example.json"),
+				'{"repo_id":"example"}',
+			);
+			const base = "https://example.invalid/";
+			vi.stubGlobal("fetch", async (url, options) => {
+				const file = new URL(url).pathname.slice(1);
+				if (file === redirected && options?.redirect === "error") {
+					throw new TypeError("redirect rejected");
+				}
+				if (file === redirected && options?.redirect === "manual") {
+					return Response.redirect(new URL("/elsewhere", base));
+				}
+				if (file.startsWith("scripts/"))
+					return new Response(null, { status: 404 });
+				return new Response(await readFile(join(root, file), "utf8"));
+			});
+			const argv = process.argv;
+			try {
+				process.argv = [
+					argv[0],
+					script,
+					`--url=${base}`,
+					`--out=${join(root, "generated.ts")}`,
+				];
+				vi.resetModules();
+				await expect(import("../scripts/build-corpus.mjs")).rejects.toThrow(
+					redirected,
+				);
+			} finally {
+				process.argv = argv;
+				vi.unstubAllGlobals();
+			}
+		},
+	);
 	it("rejects a document without a title", async () => {
 		const root = await fixture();
 		await writeFile(
@@ -147,6 +208,20 @@ describe("build-corpus", () => {
 		const result = run(root, join(root, "generated.ts"));
 		expect(result.status).toBe(1);
 		expect(result.stderr).toContain("projects-data.json: public must be true");
+	});
+	it("rejects a curated projects array before writing output", async () => {
+		const root = await fixture();
+		await writeFile(
+			join(root, "projects-data.json"),
+			JSON.stringify({ public: true, curated: [], archive: {} }),
+		);
+		const output = join(root, "generated.ts");
+		const result = run(root, output);
+		expect(result.status).toBe(1);
+		expect(result.stderr).toContain(
+			"projects-data.json: expected curated projects",
+		);
+		await expect(readFile(output)).rejects.toMatchObject({ code: "ENOENT" });
 	});
 	it("reports malformed optional JSON instead of treating it as absent", async () => {
 		const root = await fixture();
