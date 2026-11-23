@@ -225,6 +225,71 @@ describe("listCorpus", () => {
 });
 
 describe("getProfile", () => {
+	it.each([
+		["  ## What I'm working on now ##", "## Contact"],
+		["## What I'm working on now", "# Contact"],
+		["## What I'm working on now", "  ## Contact"],
+	])("extracts current work between %s and %s", (opening, closing) => {
+		const data = structuredClone(fixture);
+		data.documents["about/index"].body_markdown =
+			`${opening}\nCurrent work.\n${closing}\nOther text.`;
+		expect(createTools(data).getProfile().now).toBe("Current work.");
+	});
+
+	it.each(["\n", "\r\n"])(
+		"preserves an indented code block with %j line endings",
+		(newline) => {
+			const data = structuredClone(fixture);
+			const code = ["    first()", "    second()  "].join(newline);
+			data.documents["about/index"].body_markdown = [
+				"## What I'm working on now",
+				" \t",
+				code,
+				"\t",
+				"",
+				"## Contact",
+			].join(newline);
+			expect(createTools(data).getProfile().now).toBe(code);
+		},
+	);
+
+	it.each(["```", "~~~~"])(
+		"preserves headings inside a %s fenced example",
+		(fence) => {
+			const data = structuredClone(fixture);
+			const now = [
+				"First paragraph.",
+				"",
+				`${fence}markdown`,
+				"## What I build with",
+				"Example text.",
+				fence,
+				"",
+				"Last paragraph.",
+			].join("\n");
+			data.documents["about/index"].body_markdown =
+				`## What I'm working on now\n\n${now}\n\n## What I build with\n\nActual tools.`;
+			expect(createTools(data).getProfile()).toMatchObject({
+				now,
+				uses: "Actual tools.",
+			});
+		},
+	);
+	it("uses the matching About sections when standalone pages are absent", () => {
+		const data = structuredClone(fixture);
+		const now = "Current work.\n\n### Next\n\nA milestone.";
+		const uses = "Tools.\n\n### Languages\n\nTypeScript.";
+		const about = `## What I'm working on now\n\n${now}\n\n## What I build with\n\n${uses}\n\n## Contact\n\nOther text.`;
+		data.documents["about/index"].body_markdown = about;
+		expect(createTools(data).getProfile()).toMatchObject({ about, now, uses });
+
+		data.documents["now/index"] = {
+			...data.documents["about/index"],
+			id: "now/index",
+			body_markdown: "Standalone",
+		};
+		expect(createTools(data).getProfile().now).toBe("Standalone");
+	});
 	it("pulls name + about body", () => {
 		const p = tools.getProfile();
 		expect(p.name).toBe("Saagar");

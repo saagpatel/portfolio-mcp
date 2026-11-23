@@ -51,6 +51,13 @@ afterEach(() => {
 });
 
 describe("probe-mcp", () => {
+	it("preserves inline query equals signs", () => {
+		expect(parseArgs(["--query=a=b"]).query).toBe("a=b");
+	});
+
+	it("rejects an inline limit with trailing equals text", () => {
+		expect(() => parseArgs(["--limit=1=x"])).toThrow(/--limit/);
+	});
 	it("parses --allow-pending-tools as a bare flag", () => {
 		expect(parseArgs([]).allowPendingTools).toBe(false);
 		const opts = parseArgs(["--allow-pending-tools", "--limit", "3"]);

@@ -23,19 +23,23 @@ async function workspace() {
 	await mkdir(join(source, "corpus/writing"), { recursive: true });
 	await writeFile(
 		join(source, "corpus-index.json"),
-		JSON.stringify({ documents: [{ id: "writing/example", type: "essay" }] }),
+		JSON.stringify({
+			counts: { essay: 1 },
+			documents: [{ id: "writing/example", type: "essay", title: "Example" }],
+		}),
 	);
 	await writeFile(
 		join(source, "corpus/writing/example.json"),
 		JSON.stringify({
 			id: "writing/example",
+			title: "Example",
 			type: "essay",
 			body_markdown: "Public text.",
 		}),
 	);
 	await writeFile(
 		join(source, "projects-data.json"),
-		JSON.stringify({ curated: {}, archive: {} }),
+		JSON.stringify({ public: true, curated: {}, archive: {} }),
 	);
 	const pin = join(root, "corpus.source.json");
 	await writeFile(pin, JSON.stringify(PIN));
@@ -101,10 +105,13 @@ describe("corpus-source rebuild-and-hash check", () => {
 			JSON.stringify({
 				id: "writing/example",
 				type: "essay",
+				title: "Example",
 				body_markdown: "Newer public text.",
 			}),
 		);
-		expect(corpusSource(ws, "--check").status).toBe(1);
+		const result = corpusSource(ws, "--check");
+		expect(result.status).toBe(1);
+		expect(result.stderr).toContain("does not match a rebuild");
 	});
 
 	it("re-bakes the committed file with --write", async () => {

@@ -249,17 +249,48 @@ export function createTools(corpus: Corpus) {
 		now: string;
 		uses: string;
 	} {
-		const body = (id: string): string =>
+		const body = (id: string) =>
 			Object.hasOwn(corpus.documents, id)
-				? (corpus.documents[id]?.body_markdown ?? "")
-				: "";
+				? corpus.documents[id].body_markdown
+				: undefined;
+		const about = body("about/index") ?? "";
+		const sectionBody = (heading: string) => {
+			let start: number | undefined;
+			let end = 0;
+			let active = false;
+			let fence = "";
+			for (const match of about.matchAll(/[^\r\n]+/g)) {
+				const line = match[0];
+				const title = !fence && /^ {0,3}(#{1,2})(?:[ \t]+(.*)|$)/.exec(line);
+				if (title) {
+					if (active) break;
+					active =
+						title[1] === "##" &&
+						title[2]?.trimEnd().replace(/[ \t]+#+$/, "") === heading;
+					continue;
+				}
+				if (active && /[^ \t]/.test(line)) {
+					start ??= match.index;
+					end = match.index + line.length;
+				}
+				const marker = /^ {0,3}(`{3,}|~{3,})(.*)/.exec(line);
+				if (!marker) continue;
+				const [, run, info] = marker;
+				if (fence) {
+					if (run.startsWith(fence) && !info.trim()) fence = "";
+				} else if (run[0] === "~" || !info.includes("`")) {
+					fence = run;
+				}
+			}
+			return about.slice(start, end);
+		};
 		return {
 			name: corpus.index.title,
 			summary: corpus.index.summary,
 			site: corpus.index.site,
-			about: body("about/index"),
-			now: body("now/index"),
-			uses: body("uses/index"),
+			about,
+			now: body("now/index") ?? sectionBody("What I'm working on now"),
+			uses: body("uses/index") ?? sectionBody("What I build with"),
 		};
 	}
 

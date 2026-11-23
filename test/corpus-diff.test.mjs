@@ -32,6 +32,7 @@ async function bake(dir, documents) {
 	await writeFile(
 		join(source, "corpus-index.json"),
 		JSON.stringify({
+			counts: { essay: documents.length },
 			documents: documents.map(({ id, type, title }) => ({ id, type, title })),
 		}),
 	);
@@ -40,7 +41,7 @@ async function bake(dir, documents) {
 	}
 	await writeFile(
 		join(source, "projects-data.json"),
-		JSON.stringify({ curated: {}, archive: {} }),
+		JSON.stringify({ public: true, curated: {}, archive: {} }),
 	);
 	const out = join(dir, "corpus.generated.ts");
 	const result = spawnSync(
@@ -84,6 +85,23 @@ const corpus = (documents, extra = {}) => ({
 });
 
 describe("corpus-diff re-bake summary", () => {
+	it("reports a curated project reorder", () => {
+		const before = corpus([]);
+		before.projects.curated = { first: {}, second: {} };
+		const after = structuredClone(before);
+		after.projects.curated = { second: {}, first: {} };
+		expect(render(summarize(before, after))).toContain(
+			"### Curated projects (0 added, 0 removed, 0 changed, order changed)",
+		);
+		after.projects.curated = { new: {}, first: {}, second: {} };
+		expect(render(summarize(before, after))).not.toContain("order changed");
+	});
+	it("rejects a generated corpus missing required sections", () => {
+		const generated = "const corpus: Corpus = {};\n\nexport default corpus;";
+		expect(() => parseGenerated(generated)).toThrow(
+			/index.*documents.*projects/,
+		);
+	});
 	it("summarizes a real re-bake from the generator's own output", async () => {
 		const before = await bake(await tempDir(), [
 			doc("writing/kept"),
